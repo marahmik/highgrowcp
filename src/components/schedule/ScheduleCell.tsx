@@ -6,7 +6,7 @@ interface ScheduleCellProps {
   leaveType: LeaveType | null
   status: ScheduleStatus
   isEditable: boolean
-  onClick: () => void
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
 const STATUS_INDICATOR: Record<ScheduleStatus, string> = {
