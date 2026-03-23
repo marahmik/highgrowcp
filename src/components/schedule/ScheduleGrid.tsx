@@ -16,6 +16,7 @@ interface ScheduleGridProps {
   ghostSchedules: GhostSchedule[]
   currentUserId: string
   isManager: boolean
+  isLocked: boolean
   onSave: (userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) => void
   onAnnualLeaveUpdate: (memberId: string, value: number) => void
 }
@@ -40,7 +41,7 @@ const DAY_TEXT_COLORS: Record<number, string> = {
   6: 'text-blue-500',
 }
 
-export function ScheduleGrid({ days, members, schedules, ghostSchedules, currentUserId, isManager, onSave, onAnnualLeaveUpdate }: ScheduleGridProps) {
+export function ScheduleGrid({ days, members, schedules, ghostSchedules, currentUserId, isManager, isLocked, onSave, onAnnualLeaveUpdate }: ScheduleGridProps) {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const [editingLeave, setEditingLeave] = useState<string | null>(null)
   const [leaveInput, setLeaveInput] = useState('')
@@ -69,7 +70,7 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
   }
 
   function handleCellClick(member: MemberWithRole, date: Date, e: React.MouseEvent) {
-    // 단기알바는 매니저만 편집
+    if (isLocked) return
     if (member.isGhost && !isManager) return
     const isSelf = member.id === currentUserId
     const canEdit = isManager || isSelf

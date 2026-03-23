@@ -66,8 +66,8 @@ export function MainPage() {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Calendar className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">쌀체듈러</CardTitle>
-          <CardDescription>매장 스케줄 관리 서비스</CardDescription>
+          <CardTitle className="text-2xl">하이그로우 Corp.</CardTitle>
+          <CardDescription>스케쥴 관리 시스템</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button

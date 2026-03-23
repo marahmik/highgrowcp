@@ -2,8 +2,8 @@ export type WorkType = 'open' | 'middle' | 'close' | 'allday'
 export type LeaveType = 'annual' | 'half' | 'substitute' | 'sick' | 'request'
 export type ScheduleStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 export type UserRole = 'admin' | 'user'
-export type MemberStatus = 'pending' | 'approved' | 'rejected'
-export type MemberRole = 'admin' | 'senior' | 'junior' | 'parttimer'
+export type MemberStatus = 'pending' | 'approved' | 'rejected' | 'banned'
+export type MemberRole = 'admin' | 'senior' | 'junior' | 'parttimer' | 'resigned'
 
 export interface Profile {
   id: string
@@ -18,6 +18,7 @@ export interface Store {
   id: string
   name: string
   owner_id: string
+  locked: boolean
   created_at: string
 }
 

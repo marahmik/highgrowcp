@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check, X, Ban } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,6 +16,7 @@ const ROLE_OPTIONS = [
   { value: 'junior', label: '주니어', color: 'text-orange-600' },
   { value: 'senior', label: '시니어', color: 'text-blue-600' },
   { value: 'admin', label: '매니저', color: 'text-red-600' },
+  { value: 'resigned', label: '퇴사자', color: 'text-red-800' },
 ]
 
 export function MembersTab() {
@@ -36,7 +37,8 @@ export function MembersTab() {
     setLoading(false)
   }
 
-  async function updateMemberStatus(id: string, status: 'approved' | 'rejected') {
+  async function updateMemberStatus(id: string, status: 'approved' | 'rejected' | 'banned') {
+    if (status === 'banned' && !confirm('이 회원을 정말 탈퇴(밴) 처리하시겠습니까?')) return
     await supabase.from('store_members').update({ status }).eq('id', id)
     loadMembers()
   }
@@ -58,6 +60,7 @@ export function MembersTab() {
   const pending = members.filter((m) => m.status === 'pending')
   const approved = members.filter((m) => m.status === 'approved')
   const rejected = members.filter((m) => m.status === 'rejected')
+  const banned = members.filter((m) => m.status === 'banned')
 
   return (
     <div className="space-y-6">
@@ -119,6 +122,10 @@ export function MembersTab() {
                   관리자
                 </Button>
               </div>
+              {/* 밴 버튼 */}
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => updateMemberStatus(m.id, 'banned')}>
+                <Ban className="mr-1 h-3 w-3" />밴
+              </Button>
             </MemberCard>
           ))
         )}
@@ -137,6 +144,20 @@ export function MembersTab() {
           ))}
         </section>
       )}
+
+      {/* 밴됨 */}
+      {banned.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="font-semibold text-gray-600">탈퇴/밴 ({banned.length})</h3>
+          {banned.map((m) => (
+            <MemberCard key={m.id} member={m}>
+              <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
+                재승인
+              </Button>
+            </MemberCard>
+          ))}
+        </section>
+      )}
     </div>
   )
 }
@@ -146,6 +167,7 @@ const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   senior: { label: '시니어', className: 'bg-blue-100 text-blue-700' },
   junior: { label: '주니어', className: 'bg-orange-100 text-orange-700' },
   parttimer: { label: '파트타이머', className: 'bg-purple-100 text-purple-700' },
+  resigned: { label: '퇴사자', className: 'bg-red-200 text-red-800' },
 }
 
 function MemberCard({ member, children }: { member: MemberWithDetails; children: React.ReactNode }) {
@@ -160,10 +182,11 @@ function MemberCard({ member, children }: { member: MemberWithDetails; children:
               <span>{member.stores.name}</span>
               {badge && <Badge variant="secondary" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>}
               {member.profiles.role === 'admin' && <Badge className="text-xs">전체관리자</Badge>}
+              {member.status === 'banned' && <Badge variant="destructive" className="text-xs">밴</Badge>}
             </div>
           </div>
         </div>
-        <div className="flex gap-1">{children}</div>
+        <div className="flex gap-1 items-center">{children}</div>
       </CardContent>
     </Card>
   )
