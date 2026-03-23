@@ -143,7 +143,7 @@ BEGIN
     SELECT 1 FROM store_members
     WHERE store_id = checking_store_id
       AND user_id = auth.uid()
-      AND role IN ('admin', 'manager')
+      AND role = 'admin'
       AND status = 'approved'
   ) THEN
     RETURN TRUE;
@@ -161,7 +161,7 @@ CREATE POLICY "store_members_select_store_admin"
 CREATE POLICY "store_members_insert_request"
   ON store_members FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid() AND status = 'pending' AND role = 'member');
+  WITH CHECK (user_id = auth.uid() AND status = 'pending' AND role = 'parttimer');
 
 CREATE POLICY "store_members_update_store_admin"
   ON store_members FOR UPDATE
@@ -171,6 +171,12 @@ CREATE POLICY "store_members_update_store_admin"
       SELECT 1 FROM stores s
       WHERE s.id = store_members.store_id
         AND s.owner_id = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+        AND p.role = 'admin'
     )
   );
 
