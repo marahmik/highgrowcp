@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/providers/AuthProvider'
 import { Layout } from '@/components/layout/Layout'
@@ -10,7 +10,7 @@ import { AdminPage } from '@/pages/admin/AdminPage'
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AuthProvider>
         <Layout>
           <Routes>
@@ -43,6 +43,6 @@ export default function App() {
         </Layout>
         <Toaster position="top-right" richColors />
       </AuthProvider>
-    </HashRouter>
+    </BrowserRouter>
   )
 }

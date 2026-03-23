@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X, Shield, User } from 'lucide-react'
+import { Check, X, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -34,13 +34,7 @@ export function MembersTab() {
     loadMembers()
   }
 
-  async function cycleMemberRole(id: string, currentRole: string) {
-    const roles: Record<string, string> = {
-      member: 'manager',
-      manager: 'admin',
-      admin: 'member'
-    }
-    const newRole = roles[currentRole] || 'member'
+  async function updateStoreRole(id: string, newRole: string) {
     await supabase.from('store_members').update({ role: newRole }).eq('id', id)
     loadMembers()
   }
@@ -86,20 +80,32 @@ export function MembersTab() {
         ) : (
           approved.map((m) => (
             <MemberCard key={m.id} member={m}>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => cycleMemberRole(m.id, m.role)}
-                title="매장 권한 변경 (직원 -> 매니저 -> 관리자)"
-              >
-                <Shield 
-                  className={`h-4 w-4 ${
-                    m.role === 'admin' ? 'text-primary' : 
-                    m.role === 'manager' ? 'text-amber-600' : 
-                    'text-muted-foreground'
-                  }`} 
-                />
-              </Button>
+              <div className="flex items-center rounded-md bg-muted p-0.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 px-2 text-xs ${m.role === 'member' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`}
+                  onClick={() => updateStoreRole(m.id, 'member')}
+                >
+                  일반
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 px-2 text-xs ${m.role === 'manager' ? 'bg-white shadow-sm font-medium text-amber-600' : 'text-muted-foreground'}`}
+                  onClick={() => updateStoreRole(m.id, 'manager')}
+                >
+                  매니저
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 px-2 text-xs ${m.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
+                  onClick={() => updateStoreRole(m.id, 'admin')}
+                >
+                  최고관리
+                </Button>
+              </div>
               <Button
                 size="sm"
                 variant="ghost"
