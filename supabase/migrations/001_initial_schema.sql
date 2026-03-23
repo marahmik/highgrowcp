@@ -27,6 +27,7 @@ CREATE TABLE store_members (
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'manager', 'member')),
+  annual_leave NUMERIC NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(store_id, user_id)
 );

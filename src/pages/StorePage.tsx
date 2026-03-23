@@ -2,18 +2,23 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Send } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import type { Schedule, Profile, WorkType, LeaveType, Store } from '@/types/database'
 
+export interface MemberWithRole extends Profile {
+  storeRole: string  // 'admin' | 'member'
+  annualLeave: number
+  memberId: string   // store_members.id for updating
+}
+
 export function StorePage() {
   const { storeId } = useParams<{ storeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user, profile } = useAuthStore()
-  const isAdmin = profile?.role === 'admin'
 
   const monthParam = searchParams.get('month')
   const monthKey = monthParam ?? format(new Date(), 'yyyy-MM')
@@ -22,9 +27,12 @@ export function StorePage() {
   const month = currentMonth.getMonth()
 
   const [store, setStore] = useState<Store | null>(null)
-  const [members, setMembers] = useState<Profile[]>([])
+  const [members, setMembers] = useState<MemberWithRole[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('member')
+
+  const isManager = currentUserRole === 'admin' || profile?.role === 'admin'
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
@@ -55,8 +63,17 @@ export function StorePage() {
 
     if (storeRes.data) setStore(storeRes.data)
     if (membersRes.data) {
-      const profiles = membersRes.data.map((m: { profiles: Profile }) => m.profiles)
-      setMembers(profiles)
+      const enriched: MemberWithRole[] = membersRes.data.map((m: any) => ({
+        ...m.profiles,
+        storeRole: m.role,
+        annualLeave: m.annual_leave ?? 0,
+        memberId: m.id,
+      }))
+      setMembers(enriched)
+
+      // 현재 유저의 매장 역할을 찾기
+      const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
+      if (myMembership) setCurrentUserRole(myMembership.role)
     }
     if (schedulesRes.data) setSchedules(schedulesRes.data)
     setLoading(false)
@@ -75,7 +92,6 @@ export function StorePage() {
     if (!storeId) return
 
     if (!workType && !leaveType) {
-      // 둘 다 null이면 삭제
       await supabase
         .from('schedules')
         .delete()
@@ -92,7 +108,7 @@ export function StorePage() {
             date,
             work_type: workType,
             leave_type: leaveType,
-            status: isAdmin ? 'approved' : 'draft',
+            status: 'approved',
           },
           { onConflict: 'store_id,user_id,date' }
         )
@@ -100,30 +116,14 @@ export function StorePage() {
     loadData()
   }
 
-  async function submitMySchedules() {
-    if (!storeId || !user) return
-    if (!confirm('이번 달 스케줄을 제출하시겠습니까?')) return
-
-    const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
-    const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
-
-    await supabase
-      .from('schedules')
-      .update({ status: 'submitted' })
-      .eq('store_id', storeId)
-      .eq('user_id', user.id)
-      .eq('status', 'draft')
-      .gte('date', monthStart)
-      .lte('date', monthEnd)
-
+  async function handleAnnualLeaveUpdate(memberId: string, value: number) {
+    await supabase.from('store_members').update({ annual_leave: value }).eq('id', memberId)
     loadData()
   }
 
   if (loading) {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
   }
-
-  const myDrafts = schedules.filter((s) => s.user_id === user?.id && s.status === 'draft')
 
   return (
     <div className="space-y-4">
@@ -133,12 +133,6 @@ export function StorePage() {
           <h1 className="text-xl font-bold">{store?.name}</h1>
           <p className="text-sm text-muted-foreground">{members.length}명 근무</p>
         </div>
-        {!isAdmin && myDrafts.length > 0 && (
-          <Button size="sm" onClick={submitMySchedules}>
-            <Send className="mr-1 h-4 w-4" />
-            제출 ({myDrafts.length}건)
-          </Button>
-        )}
       </div>
 
       {/* 월 네비게이션 */}
@@ -179,17 +173,11 @@ export function StorePage() {
           members={members}
           schedules={schedules}
           currentUserId={user?.id ?? ''}
-          isAdmin={isAdmin ?? false}
+          isManager={isManager}
           onSave={handleSave}
+          onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
         />
       )}
-
-      {/* 상태 범례 */}
-      <div className="flex gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-6 border-b-2 border-amber-400" />제출됨</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-6 border-b-2 border-green-400" />승인됨</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-6 border-b-2 border-red-400" />반려됨</span>
-      </div>
     </div>
   )
 }
