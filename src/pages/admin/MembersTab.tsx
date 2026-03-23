@@ -92,18 +92,10 @@ export function MembersTab() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className={`h-7 px-2 text-xs ${m.role === 'manager' ? 'bg-white shadow-sm font-medium text-amber-600' : 'text-muted-foreground'}`}
-                  onClick={() => updateStoreRole(m.id, 'manager')}
-                >
-                  매니저
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
                   className={`h-7 px-2 text-xs ${m.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
                   onClick={() => updateStoreRole(m.id, 'admin')}
                 >
-                  최고관리
+                  매니저
                 </Button>
               </div>
               <Button
@@ -145,7 +137,7 @@ function MemberCard({ member, children }: { member: MemberWithDetails; children:
             <p className="text-sm font-medium">{member.profiles.display_name}</p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{member.stores.name}</span>
-              {member.role === 'admin' && <Badge variant="secondary" className="text-xs">매장관리자</Badge>}
+              {member.role === 'admin' && <Badge variant="secondary" className="text-xs">매니저</Badge>}
               {member.profiles.role === 'admin' && <Badge className="text-xs">전체관리자</Badge>}
             </div>
           </div>
