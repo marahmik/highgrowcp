@@ -36,11 +36,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </span>
               {isAdmin && (
                 <>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to="/admin">관리자 메뉴</Link>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
+                    관리자 메뉴
                   </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to="/my">내 근무</Link>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/my')}>
+                    내 근무
                   </Button>
                 </>
               )}
