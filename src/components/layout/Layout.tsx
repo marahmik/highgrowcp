@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogOut, User, Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -9,39 +8,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { session, profile, isAdmin: checkIsAdmin } = useAuthStore()
   const navigate = useNavigate()
   const isAdmin = checkIsAdmin()
-  const [userStores, setUserStores] = useState<string[]>([])
-
-  useEffect(() => {
-    if (session?.user && !isAdmin) {
-      supabase
-        .from('store_members')
-        .select('store_id')
-        .eq('user_id', session.user.id)
-        .eq('status', 'approved')
-        .then(({ data }) => {
-          if (data) setUserStores(data.map(m => m.store_id))
-        })
-    }
-  }, [session, isAdmin])
 
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/')
   }
 
-  const logoTarget = !session 
-    ? '/' 
-    : isAdmin 
-      ? '/admin' 
-      : userStores.length === 1 
-        ? `/store/${userStores[0]}` 
-        : '/my'
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <header className="border-b bg-card sticky top-0 z-50">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link to={logoTarget} className="flex items-center gap-2 font-bold text-lg no-underline text-foreground shrink-0">
+          <Link to={session ? (isAdmin ? '/admin' : '/my') : '/'} className="flex items-center gap-2 font-bold text-lg no-underline text-foreground shrink-0">
             <Calendar className="h-5 w-5" />
             <span className="hidden sm:inline">하이그로우 Corp.</span>
             <span className="sm:hidden">HG</span>
@@ -60,14 +37,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   )}
                 </span>
                 {isAdmin && (
-                  <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
-                    관리
-                  </Button>
-                )}
-                {session && (
-                  <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
-                    내근무
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
+                      관리
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
+                      내근무
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4" />
