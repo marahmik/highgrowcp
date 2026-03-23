@@ -1,14 +1,15 @@
-import { WORK_TYPE_LABELS, LEAVE_TYPE_LABELS, WORK_TYPE_COLORS, LEAVE_TYPE_COLORS } from '@/constants/colors'
+import { WORK_TYPE_LABELS, LEAVE_TYPE_LABELS, WORK_TYPE_COLORS, LEAVE_TYPE_COLORS, SUPERVISOR_WORK_LABELS } from '@/constants/colors'
 import type { WorkType, LeaveType } from '@/types/database'
 
 interface ScheduleCellProps {
   workType: WorkType | null
   leaveType: LeaveType | null
   isEditable: boolean
+  isSupervisor?: boolean
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
-export function ScheduleCell({ workType, leaveType, isEditable, onClick }: ScheduleCellProps) {
+export function ScheduleCell({ workType, leaveType, isEditable, isSupervisor = false, onClick }: ScheduleCellProps) {
   const isEmpty = !workType && !leaveType
 
   let bgColor = ''
@@ -16,7 +17,7 @@ export function ScheduleCell({ workType, leaveType, isEditable, onClick }: Sched
 
   if (workType) {
     bgColor = WORK_TYPE_COLORS[workType]
-    label = WORK_TYPE_LABELS[workType]
+    label = isSupervisor ? SUPERVISOR_WORK_LABELS[workType] : WORK_TYPE_LABELS[workType]
   } else if (leaveType) {
     bgColor = LEAVE_TYPE_COLORS[leaveType]
     label = LEAVE_TYPE_LABELS[leaveType]

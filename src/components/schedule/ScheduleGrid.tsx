@@ -17,6 +17,7 @@ interface ScheduleGridProps {
   currentUserId: string
   isManager: boolean
   isLocked: boolean
+  isSupervisorStore?: boolean
   onSave: (userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) => void
   onAnnualLeaveUpdate: (memberId: string, value: number) => void
 }
@@ -29,6 +30,7 @@ interface EditTarget {
   leaveType: LeaveType | null
   anchorRect: { top: number; left: number; bottom: number; right: number }
   isManagerEdit: boolean
+  isSupervisorEdit: boolean
 }
 
 const DAY_COLORS: Record<number, string> = {
@@ -41,7 +43,7 @@ const DAY_TEXT_COLORS: Record<number, string> = {
   6: 'text-blue-500',
 }
 
-export function ScheduleGrid({ days, members, schedules, ghostSchedules, currentUserId, isManager, isLocked, onSave, onAnnualLeaveUpdate }: ScheduleGridProps) {
+export function ScheduleGrid({ days, members, schedules, ghostSchedules, currentUserId, isManager, isLocked, isSupervisorStore = false, onSave, onAnnualLeaveUpdate }: ScheduleGridProps) {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const [editingLeave, setEditingLeave] = useState<string | null>(null)
   const [leaveInput, setLeaveInput] = useState('')
@@ -87,6 +89,7 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
       leaveType,
       anchorRect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right },
       isManagerEdit: isManager,
+      isSupervisorEdit: isSupervisorStore,
     })
   }
 
@@ -153,7 +156,6 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
                       )}
                     </div>
                   </td>
-                  {/* 잔여 연차 */}
                   <td className="border-r bg-white px-1 py-0.5 text-center text-xs">
                     {member.isGhost ? (
                       <span className="text-muted-foreground">—</span>
@@ -193,6 +195,7 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
                           workType={workType}
                           leaveType={leaveType}
                           isEditable={canEdit}
+                          isSupervisor={isSupervisorStore}
                           onClick={(e) => handleCellClick(member, day, e)}
                         />
                       </td>
@@ -213,6 +216,7 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
           initialLeaveType={editTarget.leaveType}
           anchorRect={editTarget.anchorRect}
           isManager={editTarget.isManagerEdit}
+          isSupervisor={editTarget.isSupervisorEdit}
           onSave={handleSave}
           onClose={() => setEditTarget(null)}
         />

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Info } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -56,8 +56,10 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     const allGhosts: GhostSchedule[] = (ghostRes.data ?? []) as GhostSchedule[]
 
     const groups: StoreGroup[] = stores
-      .filter(s => !storeNameFilter || s.name.includes(storeNameFilter)) // Task 3: 필터링
+      .filter(s => !storeNameFilter || s.name.includes(storeNameFilter))
       .map((store) => {
+        const isSupervisorStore = store.name.includes('수퍼바이저')
+        
         const storeMembers: MemberWithRole[] = allMembers
           .filter((m: any) => m.store_id === store.id)
           .map((m: any) => ({
@@ -71,8 +73,8 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
             (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99)
           )
 
-        // Task 4: 단기알바를 볼 수 있도록 함 (제거하지 않음)
-        const ghostMembers: MemberWithRole[] = [
+        // Task 1: 수퍼바이저 매장 캘린더의 단기알바 1, 2만 삭제
+        const ghostMembers: MemberWithRole[] = isSupervisorStore ? [] : [
           { id: `ghost-${store.id}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
           { id: `ghost-${store.id}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
         ]
@@ -158,42 +160,59 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
         {storeGroups.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">표시할 데이터가 없습니다.</p>
         ) : (
-          storeGroups.map((group) => (
-            <section key={group.store.id} className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                {group.store.name}
-              </h3>
-              <div className="overflow-x-auto pb-4">
-                <ScheduleGrid
-                  year={year}
-                  month={month}
-                  days={days}
-                  members={group.members}
-                  schedules={group.schedules}
-                  ghostSchedules={group.ghostSchedules}
-                  currentUserId={user?.id ?? ''}
-                  isManager={true}
-                  isLocked={false}
-                  onSave={(userId, date, workType, leaveType) => handleSave(group.store.id, userId, date, workType, leaveType)}
-                  onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
-                  <MessageSquare className="h-4 w-4" />
-                  매장 메모
+          storeGroups.map((group) => {
+            const isSupervisorStore = group.store.name.includes('수퍼바이저')
+            
+            return (
+              <section key={group.store.id} className="space-y-4">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-primary" />
+                  {group.store.name}
+                </h3>
+                
+                {/* Task 2: 수퍼바이저 매장 캘린더 상단 도움텍스트 */}
+                {isSupervisorStore && (
+                  <div className="flex border-l-4 border-slate-800 bg-slate-50 p-3 rounded-r-lg items-center gap-3 mb-4">
+                    <Info className="h-4 w-4 text-slate-600 shrink-0" />
+                    <div className="text-xs text-slate-600">
+                      <p className="font-bold">수퍼바이저 지점 안내</p>
+                      <p className="opacity-80">수퍼바이저의 근무 유형은 파견 지점(송도, 인천, 중동, 남양주)을 의미합니다.</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto pb-4">
+                  <ScheduleGrid
+                    year={year}
+                    month={month}
+                    days={days}
+                    members={group.members}
+                    schedules={group.schedules}
+                    ghostSchedules={group.ghostSchedules}
+                    currentUserId={user?.id ?? ''}
+                    isManager={true}
+                    isLocked={false}
+                    isSupervisorStore={isSupervisorStore} // Task 3 적용
+                    onSave={(userId, date, workType, leaveType) => handleSave(group.store.id, userId, date, workType, leaveType)}
+                    onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
+                  />
                 </div>
-                <textarea
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  rows={4}
-                  defaultValue={group.store.memo ?? ''}
-                  onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
-                  placeholder="참고 메모를 입력하세요 (자동 저장)"
-                />
-              </div>
-            </section>
-          ))
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+                    <MessageSquare className="h-4 w-4" />
+                    매장 메모
+                  </div>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    rows={4}
+                    defaultValue={group.store.memo ?? ''}
+                    onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
+                    placeholder="참고 메모를 입력하세요 (자동 저장)"
+                  />
+                </div>
+              </section>
+            )
+          })
         )}
       </div>
     </div>

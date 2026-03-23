@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare, Info } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -64,6 +64,7 @@ export function StorePage() {
 
   const isManager = currentUserRole === 'admin' || profile?.role === 'admin'
   const isLocked = store?.locked ?? false
+  const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
@@ -110,8 +111,8 @@ export function StorePage() {
       // 직급순 정렬
       enriched.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
 
-      // 단기알바 2칸 추가
-      const ghostMembers: MemberWithRole[] = [
+      // Task 1: 수퍼바이저 매장 캘린더의 단기알바 1, 2만 삭제
+      const ghostMembers: MemberWithRole[] = storeRes.data?.name?.includes('수퍼바이저') ? [] : [
         { id: `ghost-${storeId}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
         { id: `ghost-${storeId}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
       ]
@@ -228,6 +229,17 @@ export function StorePage() {
           )}
         </div>
 
+        {/* Task 2: 수퍼바이저 매장 캘린더 상단 도움텍스트 */}
+        {isSupervisorStore && (
+          <div className="flex border-l-4 border-slate-800 bg-slate-50 p-4 rounded-r-lg items-center gap-3">
+            <Info className="h-5 w-5 text-slate-600 shrink-0" />
+            <div className="text-sm text-slate-600">
+              <p className="font-bold">수퍼바이저 지점 안내</p>
+              <p className="text-xs opacity-80">수퍼바이저의 근무 유형은 파견 지점(송도, 인천, 중동, 남양주)을 의미합니다.</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
             <ChevronLeft className="h-4 w-4" />
@@ -241,10 +253,10 @@ export function StorePage() {
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />오픈</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-middle" />미들</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-close" />마감</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-allday" />종일</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />{isSupervisorStore ? '송도' : '오픈'}</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-middle" />{isSupervisorStore ? '인천' : '미들'}</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-close" />{isSupervisorStore ? '중동' : '마감'}</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-allday" />{isSupervisorStore ? '남양주' : '종일'}</span>
           <span className="text-muted-foreground">|</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-annual" />연차</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-half" />반차</span>
@@ -268,6 +280,7 @@ export function StorePage() {
                 currentUserId={user?.id ?? ''}
                 isManager={isManager}
                 isLocked={isLocked && !isManager}
+                isSupervisorStore={isSupervisorStore} // Task 3 적용
                 onSave={handleSave}
                 onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
               />
@@ -293,7 +306,7 @@ export function StorePage() {
 
       <hr className="border-t-2" />
 
-      {/* Task 3: 수퍼바이저(통합) 캘린더 표시 - 수퍼바이저 매장만 필터링 */}
+      {/* 매장 페이지 하단 통합 캘린더 필터링 (수퍼바이저 매장만) */}
       <AllSchedulesTab storeNameFilter="수퍼바이저" />
     </div>
   )
