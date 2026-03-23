@@ -5,9 +5,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { session, profile } = useAuthStore()
+  const { session, profile, isAdmin: checkIsAdmin } = useAuthStore()
   const navigate = useNavigate()
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = checkIsAdmin()
 
   async function handleLogout() {
     await supabase.auth.signOut()
