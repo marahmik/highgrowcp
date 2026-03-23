@@ -3,7 +3,7 @@ export type LeaveType = 'annual' | 'half' | 'substitute' | 'sick' | 'request'
 export type ScheduleStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 export type UserRole = 'admin' | 'user'
 export type MemberStatus = 'pending' | 'approved' | 'rejected'
-export type MemberRole = 'admin' | 'member'
+export type MemberRole = 'admin' | 'manager' | 'member'
 
 export interface Profile {
   id: string

@@ -34,8 +34,13 @@ export function MembersTab() {
     loadMembers()
   }
 
-  async function toggleMemberRole(id: string, currentRole: string) {
-    const newRole = currentRole === 'admin' ? 'member' : 'admin'
+  async function cycleMemberRole(id: string, currentRole: string) {
+    const roles: Record<string, string> = {
+      member: 'manager',
+      manager: 'admin',
+      admin: 'member'
+    }
+    const newRole = roles[currentRole] || 'member'
     await supabase.from('store_members').update({ role: newRole }).eq('id', id)
     loadMembers()
   }
@@ -84,10 +89,16 @@ export function MembersTab() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => toggleMemberRole(m.id, m.role)}
-                title={m.role === 'admin' ? '매장 관리자 해제' : '매장 관리자 지정'}
+                onClick={() => cycleMemberRole(m.id, m.role)}
+                title="매장 권한 변경 (직원 -> 매니저 -> 관리자)"
               >
-                <Shield className={`h-4 w-4 ${m.role === 'admin' ? 'text-primary' : 'text-muted-foreground'}`} />
+                <Shield 
+                  className={`h-4 w-4 ${
+                    m.role === 'admin' ? 'text-primary' : 
+                    m.role === 'manager' ? 'text-amber-600' : 
+                    'text-muted-foreground'
+                  }`} 
+                />
               </Button>
               <Button
                 size="sm"
