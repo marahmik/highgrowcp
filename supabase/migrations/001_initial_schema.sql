@@ -26,7 +26,7 @@ CREATE TABLE store_members (
   store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'manager', 'member')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(store_id, user_id)
 );
@@ -131,7 +131,7 @@ BEGIN
     SELECT 1 FROM store_members
     WHERE store_id = checking_store_id
       AND user_id = auth.uid()
-      AND role = 'admin'
+      AND role IN ('admin', 'manager')
       AND status = 'approved'
   ) THEN
     RETURN TRUE;
