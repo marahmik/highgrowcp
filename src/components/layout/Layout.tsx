@@ -34,6 +34,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </span>
                 )}
               </span>
+              {isAdmin && (
+                <>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/admin">관리자 메뉴</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/my">내 근무</Link>
+                  </Button>
+                </>
+              )}
               <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
               </Button>
