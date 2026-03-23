@@ -6,8 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
-import { ROLE_ORDER, ROLE_COLORS, ROLE_LABELS } from '@/pages/StorePage'
-import type { Schedule, Profile, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
+import { ROLE_ORDER } from '@/pages/StorePage'
+import type { Schedule, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
 
 interface StoreGroup {
