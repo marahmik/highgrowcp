@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -16,7 +16,8 @@ export function StorePage() {
   const isAdmin = profile?.role === 'admin'
 
   const monthParam = searchParams.get('month')
-  const currentMonth = monthParam ? new Date(monthParam + '-01') : new Date()
+  const monthKey = monthParam ?? format(new Date(), 'yyyy-MM')
+  const currentMonth = useMemo(() => new Date(monthKey + '-01'), [monthKey])
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth()
 
@@ -59,7 +60,7 @@ export function StorePage() {
     }
     if (schedulesRes.data) setSchedules(schedulesRes.data)
     setLoading(false)
-  }, [storeId, currentMonth.toISOString()])
+  }, [storeId, monthKey])
 
   useEffect(() => {
     loadData()
