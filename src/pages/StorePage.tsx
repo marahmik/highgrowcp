@@ -197,9 +197,6 @@ export function StorePage() {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
   }
 
-  // 잠금 시 일반 직원은 수정 불가
-  const canEdit = isManager || !isLocked
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
