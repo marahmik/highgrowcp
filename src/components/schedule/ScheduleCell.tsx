@@ -1,22 +1,14 @@
 import { WORK_TYPE_LABELS, LEAVE_TYPE_LABELS, WORK_TYPE_COLORS, LEAVE_TYPE_COLORS } from '@/constants/colors'
-import type { WorkType, LeaveType, ScheduleStatus } from '@/types/database'
+import type { WorkType, LeaveType } from '@/types/database'
 
 interface ScheduleCellProps {
   workType: WorkType | null
   leaveType: LeaveType | null
-  status: ScheduleStatus
   isEditable: boolean
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
-const STATUS_INDICATOR: Record<ScheduleStatus, string> = {
-  draft: '',
-  submitted: 'border-b-2 border-amber-400',
-  approved: 'border-b-2 border-green-400',
-  rejected: 'border-b-2 border-red-400',
-}
-
-export function ScheduleCell({ workType, leaveType, status, isEditable, onClick }: ScheduleCellProps) {
+export function ScheduleCell({ workType, leaveType, isEditable, onClick }: ScheduleCellProps) {
   const isEmpty = !workType && !leaveType
 
   let bgColor = ''
@@ -38,7 +30,6 @@ export function ScheduleCell({ workType, leaveType, status, isEditable, onClick 
       className={`
         h-8 w-full rounded text-xs font-medium transition-colors
         ${bgColor}
-        ${STATUS_INDICATOR[status]}
         ${isEmpty ? 'text-muted-foreground hover:bg-muted' : ''}
         ${isEditable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}
       `}
