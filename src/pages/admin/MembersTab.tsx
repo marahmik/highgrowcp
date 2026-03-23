@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 import type { Profile, StoreMember, Store } from '@/types/database'
 
 interface MemberWithDetails extends StoreMember {
@@ -39,19 +40,25 @@ export function MembersTab() {
 
   async function updateMemberStatus(id: string, status: 'approved' | 'rejected' | 'banned') {
     if (status === 'banned' && !confirm('이 회원을 정말 탈퇴(밴) 처리하시겠습니까?')) return
-    await supabase.from('store_members').update({ status }).eq('id', id)
+    const { error } = await supabase.from('store_members').update({ status }).eq('id', id)
+    if (error) { toast.error('상태 변경 실패', { description: error.message }); return }
+    toast.success('상태가 변경되었습니다.')
     loadMembers()
   }
 
   async function updateStoreRole(id: string, newRole: string) {
-    await supabase.from('store_members').update({ role: newRole }).eq('id', id)
+    const { error } = await supabase.from('store_members').update({ role: newRole }).eq('id', id)
+    if (error) { toast.error('직급 변경 실패', { description: error.message }); return }
+    toast.success('직급이 변경되었습니다.')
     loadMembers()
   }
 
   async function updateProfileRole(userId: string, currentRole: string) {
     const newRole = currentRole === 'admin' ? 'user' : 'admin'
     if (newRole === 'user' && !confirm('이 사용자의 전체 관리자 권한을 해제하시겠습니까?')) return
-    await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
+    if (error) { toast.error('권한 변경 실패', { description: error.message }); return }
+    toast.success('권한이 변경되었습니다.')
     loadMembers()
   }
 
