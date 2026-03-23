@@ -7,6 +7,13 @@ export const WORK_TYPE_LABELS: Record<WorkType, string> = {
   allday: '종일',
 }
 
+export const SUPERVISOR_WORK_LABELS: Record<WorkType, string> = {
+  open: '송도',
+  middle: '인천',
+  close: '중동',
+  allday: '남양주',
+}
+
 export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   annual: '연차',
   half: '반차',
