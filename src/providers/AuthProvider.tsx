@@ -36,6 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from('store_members').select('role').eq('user_id', userId)
     ])
 
+    // Race condition guard: If session was lost while fetching, abort setting profile
+    if (!useAuthStore.getState().session) {
+      return
+    }
+
     setProfile(profile)
     
     // Check if user is an admin or manager in any store
