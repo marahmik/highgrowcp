@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -20,8 +20,7 @@ export function MainPage() {
 
   // 이미 로그인된 경우 리다이렉트
   if (profile) {
-    navigate(profile.role === 'admin' ? '/admin' : '/my', { replace: true })
-    return null
+    return <Navigate to={profile.role === 'admin' ? '/admin' : '/my'} replace />
   }
 
   async function handleEmailAuth(e: React.FormEvent) {

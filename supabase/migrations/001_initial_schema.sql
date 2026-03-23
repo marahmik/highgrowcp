@@ -120,24 +120,31 @@ CREATE POLICY "store_members_select_own"
   TO authenticated
   USING (user_id = auth.uid());
 
+CREATE OR REPLACE FUNCTION public.is_store_admin(checking_store_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM stores WHERE id = checking_store_id AND owner_id = auth.uid()) THEN
+    RETURN TRUE;
+  END IF;
+  
+  IF EXISTS (
+    SELECT 1 FROM store_members
+    WHERE store_id = checking_store_id
+      AND user_id = auth.uid()
+      AND role = 'admin'
+      AND status = 'approved'
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE POLICY "store_members_select_store_admin"
   ON store_members FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM store_members sm
-      WHERE sm.store_id = store_members.store_id
-        AND sm.user_id = auth.uid()
-        AND sm.role = 'admin'
-        AND sm.status = 'approved'
-    )
-    OR
-    EXISTS (
-      SELECT 1 FROM stores s
-      WHERE s.id = store_members.store_id
-        AND s.owner_id = auth.uid()
-    )
-  );
+  USING ( public.is_store_admin(store_members.store_id) );
 
 CREATE POLICY "store_members_insert_request"
   ON store_members FOR INSERT
