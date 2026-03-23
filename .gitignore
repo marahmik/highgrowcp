@@ -1,0 +1,5 @@
+
+# Local files
+.claude/*
+!.claude/skills/
+docs/sum/
