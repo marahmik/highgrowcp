@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ export const ROLE_ORDER: Record<string, number> = {
   senior: 2,
   junior: 3,
   parttimer: 4,
+  resigned: 5,
 }
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -22,14 +23,15 @@ export const ROLE_LABELS: Record<string, string> = {
   senior: '시니어',
   junior: '주니어',
   parttimer: '파트타이머',
+  resigned: '퇴사자',
 }
 
-// 직급별 이름 배경 색상
 export const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
   senior: 'bg-blue-100 text-blue-700',
   junior: 'bg-orange-100 text-orange-700',
   parttimer: 'bg-purple-100 text-purple-700',
+  resigned: 'bg-red-200 text-red-800',
 }
 
 export interface MemberWithRole extends Profile {
@@ -59,6 +61,7 @@ export function StorePage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
 
   const isManager = currentUserRole === 'admin' || profile?.role === 'admin'
+  const isLocked = store?.locked ?? false
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
@@ -105,13 +108,15 @@ export function StorePage() {
       // 직급순 정렬
       enriched.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
 
-      // 단기알바 2칸 추가
+      // 단기알바 2칸 추가 (퇴사자 위에, 정규 아래)
       const ghostMembers: MemberWithRole[] = [
         { id: `ghost-${storeId}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
         { id: `ghost-${storeId}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
       ]
 
-      setMembers([...enriched, ...ghostMembers])
+      // 퇴사자는 캘린더에서 제외 (퇴사자는 /my 페이지에서 본인 기록만 열람)
+      const active = enriched.filter(m => m.storeRole !== 'resigned')
+      setMembers([...active, ...ghostMembers])
 
       const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
       if (myMembership) setCurrentUserRole(myMembership.role)
@@ -125,27 +130,17 @@ export function StorePage() {
     loadData()
   }, [loadData])
 
-  // 실시간 구독: schedules 테이블 변경 시 자동 새로고침
+  // 실시간 구독
   useEffect(() => {
     if (!storeId) return
 
     const channel = supabase
       .channel(`schedules-${storeId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'schedules', filter: `store_id=eq.${storeId}` },
-        () => loadData()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'ghost_schedules', filter: `store_id=eq.${storeId}` },
-        () => loadData()
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules', filter: `store_id=eq.${storeId}` }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ghost_schedules', filter: `store_id=eq.${storeId}` }, () => loadData())
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [storeId, loadData])
 
   function navigateMonth(direction: 'prev' | 'next') {
@@ -153,10 +148,18 @@ export function StorePage() {
     setSearchParams({ month: format(newMonth, 'yyyy-MM') })
   }
 
+  async function toggleLock() {
+    if (!storeId || !store) return
+    const newLocked = !store.locked
+    await supabase.from('stores').update({ locked: newLocked }).eq('id', storeId)
+    setStore({ ...store, locked: newLocked })
+  }
+
   async function handleSave(userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     if (!storeId) return
+    // 잠금 시 수정 불가 (관리자도)
+    if (isLocked && !isManager) return
 
-    // 단기알바인 경우 ghost_schedules 사용
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
     if (ghostMatch) {
       const slot = parseInt(ghostMatch[1])
@@ -194,13 +197,29 @@ export function StorePage() {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
   }
 
+  // 잠금 시 일반 직원은 수정 불가
+  const canEdit = isManager || !isLocked
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">{store?.name}</h1>
+          <h1 className="text-xl font-bold">
+            {store?.name}
+            {isLocked && <span className="ml-2 text-sm text-red-500">🔒 잠금됨</span>}
+          </h1>
           <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
         </div>
+        {/* 전체관리자만 잠금 토글 가능 */}
+        {profile?.role === 'admin' && (
+          <Button
+            size="sm"
+            variant={isLocked ? 'destructive' : 'outline'}
+            onClick={toggleLock}
+          >
+            {isLocked ? <><Unlock className="mr-1 h-4 w-4" />잠금 해제</> : <><Lock className="mr-1 h-4 w-4" />캘린더 잠금</>}
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center justify-center gap-4">
@@ -240,6 +259,7 @@ export function StorePage() {
           ghostSchedules={ghostSchedules}
           currentUserId={user?.id ?? ''}
           isManager={isManager}
+          isLocked={isLocked && !isManager}
           onSave={handleSave}
           onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
         />

@@ -49,7 +49,7 @@ export function MyPage() {
   async function requestJoin(storeId: string) {
     const { error } = await supabase
       .from('store_members')
-      .insert({ store_id: storeId, user_id: user!.id, status: 'pending', role: 'member' })
+      .insert({ store_id: storeId, user_id: user!.id, status: 'pending', role: 'parttimer' })
       
     if (error) {
       toast.error('가입 요청에 실패했습니다.', { description: error.message })
@@ -131,6 +131,7 @@ function StatusBadge({ status }: { status: string }) {
     pending: { icon: Clock, label: '승인 대기', className: 'text-amber-600' },
     approved: { icon: CheckCircle, label: '승인됨', className: 'text-green-600' },
     rejected: { icon: XCircle, label: '거절됨', className: 'text-red-600' },
+    banned: { icon: XCircle, label: '탈퇴/밴', className: 'text-gray-600' },
   }[status] ?? { icon: Clock, label: status, className: 'text-muted-foreground' }
 
   const Icon = config.icon

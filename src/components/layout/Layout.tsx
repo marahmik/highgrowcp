@@ -20,7 +20,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link to={session ? (isAdmin ? '/admin' : '/my') : '/'} className="flex items-center gap-2 font-bold text-lg no-underline text-foreground">
             <Calendar className="h-5 w-5" />
-            쌀체듈러
+            하이그로우 Corp.
           </Link>
 
           {session && (
