@@ -1,20 +1,20 @@
 import { useState } from 'react'
-import { Users, Store, ClipboardCheck } from 'lucide-react'
+import { Users, Store, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StoresTab } from './StoresTab'
 import { MembersTab } from './MembersTab'
-import { ApprovalsTab } from './ApprovalsTab'
+import { AllSchedulesTab } from './AllSchedulesTab'
 
-type Tab = 'members' | 'stores' | 'approvals'
+type Tab = 'members' | 'stores' | 'schedules'
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  { key: 'schedules', label: '통합 캘린더', icon: <Calendar className="h-4 w-4" /> },
   { key: 'members', label: '회원관리', icon: <Users className="h-4 w-4" /> },
   { key: 'stores', label: '매장관리', icon: <Store className="h-4 w-4" /> },
-  { key: 'approvals', label: '승인관리', icon: <ClipboardCheck className="h-4 w-4" /> },
 ]
 
 export function AdminPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('members')
+  const [activeTab, setActiveTab] = useState<Tab>('schedules')
 
   return (
     <div className="space-y-6">
@@ -35,9 +35,9 @@ export function AdminPage() {
         ))}
       </div>
 
+      {activeTab === 'schedules' && <AllSchedulesTab />}
       {activeTab === 'members' && <MembersTab />}
       {activeTab === 'stores' && <StoresTab />}
-      {activeTab === 'approvals' && <ApprovalsTab />}
     </div>
   )
 }

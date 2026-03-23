@@ -34,23 +34,6 @@
   --color-primary-foreground: #ffffff;
   --color-destructive: #dc2626;
   --color-destructive-foreground: #ffffff;
-
-  /* 근무 타입 색상 */
-  --color-work-open: #fef08a;
-  --color-work-middle: #bbf7d0;
-  --color-work-close: #ddd6fe;
-  --color-work-allday: #bfdbfe;
-
-  /* 휴일 타입 색상 */
-  --color-leave-annual: #fed7aa;
-  --color-leave-half: #fde68a;
-  --color-leave-substitute: #d4d4d8;
-  --color-leave-sick: #fecaca;
-  --color-leave-request: #fbcfe8;
-
-  /* 요일 배경 */
-  --color-day-saturday: #eff6ff;
-  --color-day-sunday: #fef2f2;
 }
 
 body {
@@ -60,6 +43,22 @@ body {
   color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── 다크모드 오버라이드 ── */
+.dark {
+  /* 근무/휴일 색상 (다크모드) */
+  --color-work-open: #854d0e;
+  --color-work-middle: #166534;
+  --color-work-close: #5b21b6;
+  --color-work-allday: #1e40af;
+  --color-leave-annual: #9a3412;
+  --color-leave-half: #854d0e;
+  --color-leave-substitute: #3f3f46;
+  --color-leave-sick: #991b1b;
+  --color-leave-request: #9d174d;
+  --color-day-saturday: #172554;
+  --color-day-sunday: #450a0a;
 }
 
 @theme inline {
