@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { ROLE_ORDER } from '@/pages/StorePage'
 import type { Schedule, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
+import { toast } from 'sonner'
 
 interface StoreGroup {
   store: Store
@@ -77,6 +78,9 @@ export function AllSchedulesTab() {
       }
     })
 
+    // Task 7: 활성 인원수 많은 순으로 정렬
+    groups.sort((a, b) => b.members.filter(m => !m.isGhost).length - a.members.filter(m => !m.isGhost).length)
+
     setStoreGroups(groups)
     setLoading(false)
   }, [monthKey])
@@ -120,12 +124,18 @@ export function AllSchedulesTab() {
     loadData()
   }
 
+  async function handleMemoUpdate(storeId: string, memo: string) {
+    const { error } = await supabase.from('stores').update({ memo }).eq('id', storeId)
+    if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
+    setStoreGroups(prev => prev.map(g => g.store.id === storeId ? { ...g, store: { ...g.store, memo } } : g))
+  }
+
   if (loading) {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       <div className="flex items-center justify-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
           <ChevronLeft className="h-4 w-4" />
@@ -142,16 +152,14 @@ export function AllSchedulesTab() {
         <p className="text-center text-muted-foreground py-8">등록된 매장이 없습니다.</p>
       ) : (
         storeGroups.map((group) => (
-          <section key={group.store.id} className="space-y-2">
-            <h3 className="text-base font-semibold border-l-4 border-primary pl-2">
+          <section key={group.store.id} className="space-y-4">
+            <h3 className="text-lg font-bold border-l-4 border-primary pl-3">
               {group.store.name}
-              <span className="ml-2 text-xs text-muted-foreground font-normal">
+              <span className="ml-2 text-sm text-muted-foreground font-normal">
                 {group.members.filter(m => !m.isGhost).length}명
               </span>
             </h3>
-            {group.members.filter(m => !m.isGhost).length === 0 ? (
-              <p className="text-sm text-muted-foreground pl-4">멤버 없음</p>
-            ) : (
+            <div className="overflow-x-auto pb-4">
               <ScheduleGrid
                 year={year}
                 month={month}
@@ -165,7 +173,21 @@ export function AllSchedulesTab() {
                 onSave={(userId, date, workType, leaveType) => handleSave(group.store.id, userId, date, workType, leaveType)}
                 onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
               />
-            )}
+            </div>
+            {/* Task 6: 메모 공간 추가 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+                <MessageSquare className="h-4 w-4" />
+                매장 메모
+              </div>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                rows={5}
+                defaultValue={group.store.memo ?? ''}
+                onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
+                placeholder="매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)"
+              />
+            </div>
           </section>
         ))
       )}

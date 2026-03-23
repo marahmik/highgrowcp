@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X, Ban } from 'lucide-react'
+import { Check, X, Ban, Trash2, UserMinus, Edit2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -62,17 +62,31 @@ export function MembersTab() {
     loadMembers()
   }
 
-  async function deleteMember(memberId: string, userId: string) {
-    if (!confirm('이 회원을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
+  async function renameMember(userId: string, currentName: string) {
+    const newName = prompt('새 이름을 입력하세요:', currentName)
+    if (!newName || newName === currentName) return
+    const { error } = await supabase.from('profiles').update({ display_name: newName }).eq('id', userId)
+    if (error) { toast.error('이름 변경 실패', { description: error.message }); return }
+    toast.success('이름이 변경되었습니다.')
+    loadMembers()
+  }
 
-    // 1. store_members 삭제
+  async function leaveStore(memberId: string) {
+    if (!confirm('해당 매장에서 이 회원을 제외하시겠습니까? (매장에서만 삭제되고 계정은 유지됩니다. 타 지점 발령 시 사용하세요)')) return
+    const { error } = await supabase.from('store_members').delete().eq('id', memberId)
+    if (error) { toast.error('매장 제외 실패', { description: error.message }); return }
+    toast.success('매장에서 제외되었습니다.')
+    loadMembers()
+  }
+
+  async function deleteMemberPermanently(memberId: string, userId: string) {
+    if (!confirm('이 회원을 완전히 삭제하시겠습니까? (DB 및 계정 전체 삭제) 이 작업은 되돌릴 수 없습니다.')) return
+
     const { error: smError } = await supabase.from('store_members').delete().eq('id', memberId)
     if (smError) { toast.error('멤버 삭제 실패', { description: smError.message }); return }
 
-    // 2. profiles 삭제
     await supabase.from('profiles').delete().eq('id', userId)
 
-    // 3. auth.users 삭제 (RPC 함수 필요)
     const { error: authError } = await supabase.rpc('delete_user', { target_user_id: userId })
     if (authError) { toast.error('계정 삭제 실패 (수동 삭제 필요)', { description: authError.message }) }
     else { toast.success('회원이 완전히 삭제되었습니다.') }
@@ -94,7 +108,7 @@ export function MembersTab() {
         <section className="space-y-2">
           <h3 className="font-semibold text-amber-600">승인 대기 ({pending.length})</h3>
           {pending.map((m) => (
-            <MemberCard key={m.id} member={m}>
+            <MemberCard key={m.id} member={m} onRename={() => renameMember(m.profiles.id, m.profiles.display_name)}>
               <Button size="sm" onClick={() => updateMemberStatus(m.id, 'approved')}>
                 <Check className="mr-1 h-4 w-4" />승인
               </Button>
@@ -113,7 +127,7 @@ export function MembersTab() {
           <p className="text-sm text-muted-foreground">승인된 멤버가 없습니다.</p>
         ) : (
           approved.map((m) => (
-            <MemberCard key={m.id} member={m}>
+            <MemberCard key={m.id} member={m} onRename={() => renameMember(m.profiles.id, m.profiles.display_name)}>
               {/* 매장 직급 */}
               <div className="flex items-center rounded-md bg-muted p-0.5">
                 {ROLE_OPTIONS.map((opt) => (
@@ -136,7 +150,7 @@ export function MembersTab() {
                   className={`h-7 px-2 text-xs ${m.profiles.role !== 'admin' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`}
                   onClick={() => m.profiles.role === 'admin' && updateProfileRole(m.profiles.id, m.profiles.role)}
                 >
-                  일반유저
+                  일반
                 </Button>
                 <Button
                   size="sm"
@@ -144,12 +158,16 @@ export function MembersTab() {
                   className={`h-7 px-2 text-xs ${m.profiles.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
                   onClick={() => m.profiles.role !== 'admin' && updateProfileRole(m.profiles.id, m.profiles.role)}
                 >
-                  관리자
+                  전체관리
                 </Button>
               </div>
+              {/* 발령/제외 버튼 */}
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => leaveStore(m.id)} title="매장에서만 제외 (타지점 발령 시 사용)">
+                <UserMinus className="h-4 w-4" />
+              </Button>
               {/* 밴 버튼 */}
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => updateMemberStatus(m.id, 'banned')}>
-                <Ban className="mr-1 h-3 w-3" />밴
+                <Ban className="h-3 w-3" />
               </Button>
             </MemberCard>
           ))
@@ -161,7 +179,7 @@ export function MembersTab() {
         <section className="space-y-2">
           <h3 className="font-semibold text-red-600">거절됨 ({rejected.length})</h3>
           {rejected.map((m) => (
-            <MemberCard key={m.id} member={m}>
+            <MemberCard key={m.id} member={m} >
               <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
                 재승인
               </Button>
@@ -179,8 +197,8 @@ export function MembersTab() {
               <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
                 재승인
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => deleteMember(m.id, m.user_id)}>
-                삭제
+              <Button size="sm" variant="destructive" onClick={() => deleteMemberPermanently(m.id, m.user_id)}>
+                <Trash2 className="mr-1 h-3 w-3" />삭제
               </Button>
             </MemberCard>
           ))}
@@ -198,19 +216,26 @@ const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   resigned: { label: '퇴사자', className: 'bg-red-200 text-red-800' },
 }
 
-function MemberCard({ member, children }: { member: MemberWithDetails; children: React.ReactNode }) {
+function MemberCard({ member, children, onRename }: { member: MemberWithDetails; children: React.ReactNode; onRename?: () => void }) {
   const badge = ROLE_BADGE[member.role]
   return (
     <Card>
       <CardContent className="flex items-center justify-between p-3">
         <div className="flex items-center gap-3">
           <div>
-            <p className="text-sm font-medium">{member.profiles.display_name}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium">{member.profiles.display_name}</p>
+              {onRename && (
+                <button onClick={onRename} className="text-muted-foreground hover:text-primary p-0.5">
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{member.stores.name}</span>
               {badge && <Badge variant="secondary" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>}
-              {member.profiles.role === 'admin' && <Badge className="text-xs">전체관리자</Badge>}
-              {member.status === 'banned' && <Badge variant="destructive" className="text-xs">밴</Badge>}
+              {member.profiles.role === 'admin' && <Badge className="text-[10px] bg-slate-800 text-white">전체관리자</Badge>}
+              {member.status === 'banned' && <Badge variant="destructive" className="text-[10px]">밴</Badge>}
             </div>
           </div>
         </div>

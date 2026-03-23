@@ -19,6 +19,7 @@ export interface Store {
   name: string
   owner_id: string
   locked: boolean
+  memo: string | null
   created_at: string
 }
 
@@ -28,6 +29,7 @@ export interface StoreMember {
   user_id: string
   status: MemberStatus
   role: MemberRole
+  annual_leave: number
   created_at: string
 }
 
