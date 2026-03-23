@@ -1,51 +1,13 @@
-import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { LogOut, User, Calendar, Sun, Moon, Monitor } from 'lucide-react'
+import { LogOut, User, Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
-
-type ThemeMode = 'light' | 'dark' | 'system'
-
-function getSystemTheme(): 'light' | 'dark' {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function applyTheme(mode: ThemeMode) {
-  const resolved = mode === 'system' ? getSystemTheme() : mode
-  document.documentElement.classList.toggle('dark', resolved === 'dark')
-}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { session, profile, isAdmin: checkIsAdmin } = useAuthStore()
   const navigate = useNavigate()
   const isAdmin = checkIsAdmin()
-
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('theme') as ThemeMode) || 'system'
-  })
-
-  useEffect(() => {
-    applyTheme(theme)
-    localStorage.setItem('theme', theme)
-
-    if (theme === 'system') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      const handler = () => applyTheme('system')
-      mq.addEventListener('change', handler)
-      return () => mq.removeEventListener('change', handler)
-    }
-  }, [theme])
-
-  function cycleTheme() {
-    setTheme((prev) => {
-      if (prev === 'light') return 'dark'
-      if (prev === 'dark') return 'system'
-      return 'light'
-    })
-  }
-
-  const themeIcon = theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -63,10 +25,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-1 sm:gap-3">
-            <Button variant="ghost" size="sm" onClick={cycleTheme} title={`테마: ${theme}`}>
-              {themeIcon}
-            </Button>
-
             {session && (
               <>
                 <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
@@ -104,7 +62,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <footer className="py-2 text-center text-[10px] text-muted-foreground/50 select-none">
-        HDH Hugo Kim
+        HDH Hugo Kim & Jason Kim
       </footer>
     </div>
   )

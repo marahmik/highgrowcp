@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Lock, Unlock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import type { Schedule, Profile, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
+import { toast } from 'sonner'
 
 // 직급 순서 (낮을수록 위에 표시)
 export const ROLE_ORDER: Record<string, number> = {
@@ -108,13 +109,12 @@ export function StorePage() {
       // 직급순 정렬
       enriched.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
 
-      // 단기알바 2칸 추가 (퇴사자 위에, 정규 아래)
+      // 단기알바 2칸 추가
       const ghostMembers: MemberWithRole[] = [
         { id: `ghost-${storeId}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
         { id: `ghost-${storeId}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
       ]
 
-      // 퇴사자는 캘린더에서 제외 (퇴사자는 /my 페이지에서 본인 기록만 열람)
       const active = enriched.filter(m => m.storeRole !== 'resigned')
       setMembers([...active, ...ghostMembers])
 
@@ -138,6 +138,9 @@ export function StorePage() {
       .channel(`schedules-${storeId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules', filter: `store_id=eq.${storeId}` }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ghost_schedules', filter: `store_id=eq.${storeId}` }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` }, (payload) => {
+         if (payload.new) setStore(prev => prev ? { ...prev, ...payload.new } : payload.new as Store)
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -157,7 +160,6 @@ export function StorePage() {
 
   async function handleSave(userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     if (!storeId) return
-    // 잠금 시 수정 불가 (관리자도)
     if (isLocked && !isManager) return
 
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
@@ -193,12 +195,18 @@ export function StorePage() {
     loadData()
   }
 
+  async function handleMemoUpdate(memo: string) {
+    if (!storeId) return
+    const { error } = await supabase.from('stores').update({ memo }).eq('id', storeId)
+    if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
+  }
+
   if (loading) {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">
@@ -207,7 +215,6 @@ export function StorePage() {
           </h1>
           <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
         </div>
-        {/* 전체관리자만 잠금 토글 가능 */}
         {profile?.role === 'admin' && (
           <Button
             size="sm"
@@ -247,19 +254,38 @@ export function StorePage() {
       {members.length === 0 ? (
         <p className="py-8 text-center text-muted-foreground">승인된 멤버가 없습니다.</p>
       ) : (
-        <ScheduleGrid
-          year={year}
-          month={month}
-          days={days}
-          members={members}
-          schedules={schedules}
-          ghostSchedules={ghostSchedules}
-          currentUserId={user?.id ?? ''}
-          isManager={isManager}
-          isLocked={isLocked && !isManager}
-          onSave={handleSave}
-          onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
-        />
+        <div className="space-y-6">
+          <div className="overflow-x-auto pb-2">
+            <ScheduleGrid
+              year={year}
+              month={month}
+              days={days}
+              members={members}
+              schedules={schedules}
+              ghostSchedules={ghostSchedules}
+              currentUserId={user?.id ?? ''}
+              isManager={isManager}
+              isLocked={isLocked && !isManager}
+              onSave={handleSave}
+              onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+              <MessageSquare className="h-4 w-4" />
+              매장 메모
+            </div>
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              rows={5}
+              readOnly={!isManager}
+              defaultValue={store?.memo ?? ''}
+              onBlur={(e) => handleMemoUpdate(e.target.value)}
+              placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
