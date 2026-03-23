@@ -1,13 +1,51 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { LogOut, User, Calendar } from 'lucide-react'
+import { LogOut, User, Calendar, Sun, Moon, Monitor } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
+
+type ThemeMode = 'light' | 'dark' | 'system'
+
+function getSystemTheme(): 'light' | 'dark' {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function applyTheme(mode: ThemeMode) {
+  const resolved = mode === 'system' ? getSystemTheme() : mode
+  document.documentElement.classList.toggle('dark', resolved === 'dark')
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { session, profile, isAdmin: checkIsAdmin } = useAuthStore()
   const navigate = useNavigate()
   const isAdmin = checkIsAdmin()
+
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    return (localStorage.getItem('theme') as ThemeMode) || 'system'
+  })
+
+  useEffect(() => {
+    applyTheme(theme)
+    localStorage.setItem('theme', theme)
+
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const handler = () => applyTheme('system')
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    }
+  }, [theme])
+
+  function cycleTheme() {
+    setTheme((prev) => {
+      if (prev === 'light') return 'dark'
+      if (prev === 'dark') return 'system'
+      return 'light'
+    })
+  }
+
+  const themeIcon = theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -15,40 +53,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-white">
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <header className="border-b bg-card sticky top-0 z-50">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link to={session ? (isAdmin ? '/admin' : '/my') : '/'} className="flex items-center gap-2 font-bold text-lg no-underline text-foreground">
+          <Link to={session ? (isAdmin ? '/admin' : '/my') : '/'} className="flex items-center gap-2 font-bold text-lg no-underline text-foreground shrink-0">
             <Calendar className="h-5 w-5" />
-            하이그로우 Corp.
+            <span className="hidden sm:inline">하이그로우 Corp.</span>
+            <span className="sm:hidden">HG</span>
           </Link>
 
-          {session && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <User className="h-4 w-4" />
-                {profile?.display_name}
+          <div className="flex items-center gap-1 sm:gap-3">
+            <Button variant="ghost" size="sm" onClick={cycleTheme} title={`테마: ${theme}`}>
+              {themeIcon}
+            </Button>
+
+            {session && (
+              <>
+                <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
+                  <User className="h-4 w-4 hidden sm:block" />
+                  <span className="max-w-[80px] sm:max-w-none truncate">{profile?.display_name}</span>
+                  {isAdmin && (
+                    <span className="ml-1 rounded bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground">
+                      관리자
+                    </span>
+                  )}
+                </span>
                 {isAdmin && (
-                  <span className="ml-1 rounded bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
-                    관리자
-                  </span>
+                  <>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
+                      관리
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
+                      내근무
+                    </Button>
+                  </>
                 )}
-              </span>
-              {isAdmin && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
-                    관리자 메뉴
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => navigate('/my')}>
-                    내 근무
-                  </Button>
-                </>
-              )}
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -57,6 +102,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      <footer className="py-2 text-center text-[10px] text-muted-foreground/50 select-none">
+        HDH Hugo Kim
+      </footer>
     </div>
   )
 }
