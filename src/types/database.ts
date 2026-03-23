@@ -3,7 +3,7 @@ export type LeaveType = 'annual' | 'half' | 'substitute' | 'sick' | 'request'
 export type ScheduleStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 export type UserRole = 'admin' | 'user'
 export type MemberStatus = 'pending' | 'approved' | 'rejected'
-export type MemberRole = 'admin' | 'manager' | 'member'
+export type MemberRole = 'admin' | 'senior' | 'junior' | 'parttimer'
 
 export interface Profile {
   id: string
@@ -41,6 +41,15 @@ export interface Schedule {
   note: string | null
   created_at: string
   updated_at: string
+}
+
+export interface GhostSchedule {
+  id: string
+  store_id: string
+  slot: number
+  date: string
+  work_type: WorkType | null
+  leave_type: LeaveType | null
 }
 
 export interface Database {

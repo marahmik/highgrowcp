@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(profile)
     
     // Check if user is an admin or manager in any store
-    const isManager = memberships?.some(m => m.role === 'admin' || m.role === 'manager') || false
+    const isManager = memberships?.some(m => m.role === 'admin') || false
     useAuthStore.getState().setIsStoreManager(isManager)
     
     setLoading(false)

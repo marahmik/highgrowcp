@@ -7,12 +7,37 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
-import type { Schedule, Profile, WorkType, LeaveType, Store } from '@/types/database'
+import type { Schedule, Profile, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
+
+// 직급 순서 (낮을수록 위에 표시)
+export const ROLE_ORDER: Record<string, number> = {
+  admin: 1,
+  senior: 2,
+  junior: 3,
+  parttimer: 4,
+}
+
+export const ROLE_LABELS: Record<string, string> = {
+  admin: '매니저',
+  senior: '시니어',
+  junior: '주니어',
+  parttimer: '파트타이머',
+}
+
+// 직급별 이름 배경 색상
+export const ROLE_COLORS: Record<string, string> = {
+  admin: 'bg-red-100 text-red-700',
+  senior: 'bg-blue-100 text-blue-700',
+  junior: 'bg-orange-100 text-orange-700',
+  parttimer: 'bg-purple-100 text-purple-700',
+}
 
 export interface MemberWithRole extends Profile {
-  storeRole: string  // 'admin' | 'member'
+  storeRole: string
   annualLeave: number
-  memberId: string   // store_members.id for updating
+  memberId: string
+  isGhost?: boolean
+  ghostSlot?: number
 }
 
 export function StorePage() {
@@ -29,8 +54,9 @@ export function StorePage() {
   const [store, setStore] = useState<Store | null>(null)
   const [members, setMembers] = useState<MemberWithRole[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [ghostSchedules, setGhostSchedules] = useState<GhostSchedule[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentUserRole, setCurrentUserRole] = useState<string>('member')
+  const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
 
   const isManager = currentUserRole === 'admin' || profile?.role === 'admin'
 
@@ -46,7 +72,7 @@ export function StorePage() {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [storeRes, membersRes, schedulesRes] = await Promise.all([
+    const [storeRes, membersRes, schedulesRes, ghostRes] = await Promise.all([
       supabase.from('stores').select('*').eq('id', storeId).single(),
       supabase
         .from('store_members')
@@ -55,6 +81,12 @@ export function StorePage() {
         .eq('status', 'approved'),
       supabase
         .from('schedules')
+        .select('*')
+        .eq('store_id', storeId)
+        .gte('date', monthStart)
+        .lte('date', monthEnd),
+      supabase
+        .from('ghost_schedules')
         .select('*')
         .eq('store_id', storeId)
         .gte('date', monthStart)
@@ -69,19 +101,52 @@ export function StorePage() {
         annualLeave: m.annual_leave ?? 0,
         memberId: m.id,
       }))
-      setMembers(enriched)
 
-      // 현재 유저의 매장 역할을 찾기
+      // 직급순 정렬
+      enriched.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
+
+      // 단기알바 2칸 추가
+      const ghostMembers: MemberWithRole[] = [
+        { id: `ghost-${storeId}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
+        { id: `ghost-${storeId}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
+      ]
+
+      setMembers([...enriched, ...ghostMembers])
+
       const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
       if (myMembership) setCurrentUserRole(myMembership.role)
     }
     if (schedulesRes.data) setSchedules(schedulesRes.data)
+    if (ghostRes.data) setGhostSchedules(ghostRes.data as GhostSchedule[])
     setLoading(false)
   }, [storeId, monthKey])
 
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // 실시간 구독: schedules 테이블 변경 시 자동 새로고침
+  useEffect(() => {
+    if (!storeId) return
+
+    const channel = supabase
+      .channel(`schedules-${storeId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'schedules', filter: `store_id=eq.${storeId}` },
+        () => loadData()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ghost_schedules', filter: `store_id=eq.${storeId}` },
+        () => loadData()
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [storeId, loadData])
 
   function navigateMonth(direction: 'prev' | 'next') {
     const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1)
@@ -91,27 +156,31 @@ export function StorePage() {
   async function handleSave(userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     if (!storeId) return
 
-    if (!workType && !leaveType) {
-      await supabase
-        .from('schedules')
-        .delete()
-        .eq('store_id', storeId)
-        .eq('user_id', userId)
-        .eq('date', date)
-    } else {
-      await supabase
-        .from('schedules')
-        .upsert(
-          {
-            store_id: storeId,
-            user_id: userId,
-            date,
-            work_type: workType,
-            leave_type: leaveType,
-            status: 'approved',
-          },
-          { onConflict: 'store_id,user_id,date' }
+    // 단기알바인 경우 ghost_schedules 사용
+    const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
+    if (ghostMatch) {
+      const slot = parseInt(ghostMatch[1])
+      if (!workType && !leaveType) {
+        await supabase.from('ghost_schedules').delete()
+          .eq('store_id', storeId).eq('slot', slot).eq('date', date)
+      } else {
+        await supabase.from('ghost_schedules').upsert(
+          { store_id: storeId, slot, date, work_type: workType, leave_type: leaveType },
+          { onConflict: 'store_id,slot,date' }
         )
+      }
+      loadData()
+      return
+    }
+
+    if (!workType && !leaveType) {
+      await supabase.from('schedules').delete()
+        .eq('store_id', storeId).eq('user_id', userId).eq('date', date)
+    } else {
+      await supabase.from('schedules').upsert(
+        { store_id: storeId, user_id: userId, date, work_type: workType, leave_type: leaveType, status: 'approved' },
+        { onConflict: 'store_id,user_id,date' }
+      )
     }
     loadData()
   }
@@ -127,15 +196,13 @@ export function StorePage() {
 
   return (
     <div className="space-y-4">
-      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">{store?.name}</h1>
-          <p className="text-sm text-muted-foreground">{members.length}명 근무</p>
+          <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
         </div>
       </div>
 
-      {/* 월 네비게이션 */}
       <div className="flex items-center justify-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
           <ChevronLeft className="h-4 w-4" />
@@ -148,7 +215,6 @@ export function StorePage() {
         </Button>
       </div>
 
-      {/* 범례 */}
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />오픈</span>
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-middle" />미들</span>
@@ -162,7 +228,6 @@ export function StorePage() {
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-request" />요청</span>
       </div>
 
-      {/* 스케줄 그리드 */}
       {members.length === 0 ? (
         <p className="py-8 text-center text-muted-foreground">승인된 멤버가 없습니다.</p>
       ) : (
@@ -172,6 +237,7 @@ export function StorePage() {
           days={days}
           members={members}
           schedules={schedules}
+          ghostSchedules={ghostSchedules}
           currentUserId={user?.id ?? ''}
           isManager={isManager}
           onSave={handleSave}
