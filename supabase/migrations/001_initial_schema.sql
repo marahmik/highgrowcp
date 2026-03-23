@@ -26,7 +26,7 @@ CREATE TABLE store_members (
   store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'manager', 'member')),
+  role TEXT NOT NULL DEFAULT 'parttimer' CHECK (role IN ('admin', 'senior', 'junior', 'parttimer')),
   annual_leave NUMERIC NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(store_id, user_id)
@@ -45,6 +45,17 @@ CREATE TABLE schedules (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(store_id, user_id, date)
+);
+
+-- 5. ghost_schedules (단기알바 스케줄)
+CREATE TABLE ghost_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  slot INT NOT NULL,
+  date DATE NOT NULL,
+  work_type TEXT CHECK (work_type IN ('open', 'middle', 'close', 'allday')),
+  leave_type TEXT CHECK (leave_type IN ('annual', 'half', 'substitute', 'sick', 'request')),
+  UNIQUE(store_id, slot, date)
 );
 
 -- =============================================

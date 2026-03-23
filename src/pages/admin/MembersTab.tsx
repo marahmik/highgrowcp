@@ -11,6 +11,13 @@ interface MemberWithDetails extends StoreMember {
   stores: Store
 }
 
+const ROLE_OPTIONS = [
+  { value: 'parttimer', label: '파트타이머', color: 'text-purple-600' },
+  { value: 'junior', label: '주니어', color: 'text-orange-600' },
+  { value: 'senior', label: '시니어', color: 'text-blue-600' },
+  { value: 'admin', label: '매니저', color: 'text-red-600' },
+]
+
 export function MembersTab() {
   const [members, setMembers] = useState<MemberWithDetails[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +55,6 @@ export function MembersTab() {
 
   if (loading) return <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
 
-  // 승인대기 / 승인됨으로 분리
   const pending = members.filter((m) => m.status === 'pending')
   const approved = members.filter((m) => m.status === 'approved')
   const rejected = members.filter((m) => m.status === 'rejected')
@@ -80,24 +86,21 @@ export function MembersTab() {
         ) : (
           approved.map((m) => (
             <MemberCard key={m.id} member={m}>
+              {/* 매장 직급 */}
               <div className="flex items-center rounded-md bg-muted p-0.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={`h-7 px-2 text-xs ${m.role === 'member' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`}
-                  onClick={() => updateStoreRole(m.id, 'member')}
-                >
-                  일반
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={`h-7 px-2 text-xs ${m.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
-                  onClick={() => updateStoreRole(m.id, 'admin')}
-                >
-                  매니저
-                </Button>
+                {ROLE_OPTIONS.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    size="sm"
+                    variant="ghost"
+                    className={`h-7 px-1.5 text-[11px] ${m.role === opt.value ? `bg-white shadow-sm font-medium ${opt.color}` : 'text-muted-foreground'}`}
+                    onClick={() => updateStoreRole(m.id, opt.value)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
               </div>
+              {/* 전체관리자 */}
               <div className="flex items-center rounded-md bg-muted p-0.5">
                 <Button
                   size="sm"
@@ -138,7 +141,15 @@ export function MembersTab() {
   )
 }
 
+const ROLE_BADGE: Record<string, { label: string; className: string }> = {
+  admin: { label: '매니저', className: 'bg-red-100 text-red-700' },
+  senior: { label: '시니어', className: 'bg-blue-100 text-blue-700' },
+  junior: { label: '주니어', className: 'bg-orange-100 text-orange-700' },
+  parttimer: { label: '파트타이머', className: 'bg-purple-100 text-purple-700' },
+}
+
 function MemberCard({ member, children }: { member: MemberWithDetails; children: React.ReactNode }) {
+  const badge = ROLE_BADGE[member.role]
   return (
     <Card>
       <CardContent className="flex items-center justify-between p-3">
@@ -147,7 +158,7 @@ function MemberCard({ member, children }: { member: MemberWithDetails; children:
             <p className="text-sm font-medium">{member.profiles.display_name}</p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{member.stores.name}</span>
-              {member.role === 'admin' && <Badge variant="secondary" className="text-xs">매니저</Badge>}
+              {badge && <Badge variant="secondary" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>}
               {member.profiles.role === 'admin' && <Badge className="text-xs">전체관리자</Badge>}
             </div>
           </div>
