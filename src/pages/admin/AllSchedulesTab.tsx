@@ -18,7 +18,12 @@ interface StoreGroup {
   ghostSchedules: GhostSchedule[]
 }
 
-export function AllSchedulesTab() {
+interface AllSchedulesTabProps {
+  hideGhosts?: boolean
+  hideMemo?: boolean
+}
+
+export function AllSchedulesTab({ hideGhosts = false, hideMemo = false }: AllSchedulesTabProps) {
   const { user } = useAuthStore()
   const [monthKey, setMonthKey] = useState(() => format(new Date(), 'yyyy-MM'))
   const currentMonth = useMemo(() => new Date(monthKey + '-01'), [monthKey])
@@ -65,7 +70,7 @@ export function AllSchedulesTab() {
           (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99)
         )
 
-      const ghostMembers: MemberWithRole[] = [
+      const ghostMembers: MemberWithRole[] = hideGhosts ? [] : [
         { id: `ghost-${store.id}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
         { id: `ghost-${store.id}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
       ]
@@ -78,12 +83,11 @@ export function AllSchedulesTab() {
       }
     })
 
-    // Task 7: 활성 인원수 많은 순으로 정렬
     groups.sort((a, b) => b.members.filter(m => !m.isGhost).length - a.members.filter(m => !m.isGhost).length)
 
     setStoreGroups(groups)
     setLoading(false)
-  }, [monthKey])
+  }, [monthKey, hideGhosts])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -127,39 +131,50 @@ export function AllSchedulesTab() {
   async function handleMemoUpdate(storeId: string, memo: string) {
     const { error } = await supabase.from('stores').update({ memo }).eq('id', storeId)
     if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
-    setStoreGroups(prev => prev.map(g => g.store.id === storeId ? { ...g, store: { ...g.store, memo } } : g))
   }
 
   if (loading) {
-    return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
+    return <div className="py-12 text-center text-muted-foreground">하이그로우 Corp. 통합 캘린더 로딩 중...</div>
   }
 
   return (
-    <div className="space-y-12">
-      <div className="flex items-center justify-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold">
-          {format(currentMonth, 'yyyy년 M월', { locale: ko })}
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          하이그로우 Corp. 통합 캘린더
         </h2>
-        <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="font-semibold">{format(currentMonth, 'yyyy년 M월', { locale: ko })}</span>
+          <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {storeGroups.length === 0 ? (
-        <p className="text-center text-muted-foreground py-8">등록된 매장이 없습니다.</p>
-      ) : (
-        storeGroups.map((group) => (
+      {/* Task 3: 티커(송도, 인천, 중동, 남양주) */}
+      <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs border bg-slate-50/50 p-3 rounded-lg">
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-work-open" />송도</div>
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-work-middle" />인천</div>
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-work-close" />중동</div>
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-work-allday" />남양주</div>
+        <div className="h-4 w-[1px] bg-slate-200 hidden sm:block mx-1" />
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-leave-annual" />연차</div>
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-leave-half" />반차</div>
+        <div className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-leave-sick" />병가</div>
+      </div>
+
+      <div className="space-y-12">
+        {storeGroups.map((group) => (
           <section key={group.store.id} className="space-y-4">
-            <h3 className="text-lg font-bold border-l-4 border-primary pl-3">
+            <h3 className="text-base font-bold flex items-center gap-2 border-b pb-2">
+              <span className="h-2 w-2 rounded-full bg-primary" />
               {group.store.name}
-              <span className="ml-2 text-sm text-muted-foreground font-normal">
-                {group.members.filter(m => !m.isGhost).length}명
-              </span>
+              <span className="text-xs text-muted-foreground font-normal">({group.members.filter(m => !m.isGhost).length}명)</span>
             </h3>
-            <div className="overflow-x-auto pb-4">
+            <div className="overflow-x-auto pb-2">
               <ScheduleGrid
                 year={year}
                 month={month}
@@ -174,23 +189,24 @@ export function AllSchedulesTab() {
                 onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
               />
             </div>
-            {/* Task 6: 메모 공간 추가 */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
-                <MessageSquare className="h-4 w-4" />
-                매장 메모
+            {!hideMemo && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  {group.store.name} 메모
+                </div>
+                <textarea
+                  className="w-full rounded-md border bg-slate-50/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  rows={4}
+                  defaultValue={group.store.memo ?? ''}
+                  onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
+                  placeholder="참고 사항을 입력하세요"
+                />
               </div>
-              <textarea
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                rows={5}
-                defaultValue={group.store.memo ?? ''}
-                onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
-                placeholder="매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)"
-              />
-            </div>
+            )}
           </section>
-        ))
-      )}
+        ))}
+      </div>
     </div>
   )
 }

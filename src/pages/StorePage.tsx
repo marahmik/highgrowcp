@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
+import { AllSchedulesTab } from '@/pages/admin/AllSchedulesTab'
 import type { Schedule, Profile, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -106,10 +107,8 @@ export function StorePage() {
         memberId: m.id,
       }))
 
-      // 직급순 정렬
       enriched.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
 
-      // 단기알바 2칸 추가
       const ghostMembers: MemberWithRole[] = [
         { id: `ghost-${storeId}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
         { id: `ghost-${storeId}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
@@ -130,7 +129,6 @@ export function StorePage() {
     loadData()
   }, [loadData])
 
-  // 실시간 구독
   useEffect(() => {
     if (!storeId) return
 
@@ -202,91 +200,91 @@ export function StorePage() {
   }
 
   if (loading) {
-    return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
+    return <div className="py-12 text-center text-muted-foreground">매장 캘린더 로딩 중...</div>
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">
-            {store?.name}
-            {isLocked && <span className="ml-2 text-sm text-red-500">🔒 잠금됨</span>}
-          </h1>
-          <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
+    <div className="space-y-12">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">
+              {store?.name}
+              {isLocked && <span className="ml-2 text-sm text-red-500">🔒 잠금됨</span>}
+            </h1>
+            <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
+          </div>
+          {profile?.role === 'admin' && (
+            <Button
+              size="sm"
+              variant={isLocked ? 'destructive' : 'outline'}
+              onClick={toggleLock}
+            >
+              {isLocked ? <><Unlock className="mr-1 h-4 w-4" />잠금 해제</> : <><Lock className="mr-1 h-4 w-4" />캘린더 잠금</>}
+            </Button>
+          )}
         </div>
-        {profile?.role === 'admin' && (
-          <Button
-            size="sm"
-            variant={isLocked ? 'destructive' : 'outline'}
-            onClick={toggleLock}
-          >
-            {isLocked ? <><Unlock className="mr-1 h-4 w-4" />잠금 해제</> : <><Lock className="mr-1 h-4 w-4" />캘린더 잠금</>}
+
+        <div className="flex items-center justify-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
+            <ChevronLeft className="h-4 w-4" />
           </Button>
-        )}
-      </div>
-
-      <div className="flex items-center justify-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold">
-          {format(currentMonth, 'yyyy년 M월', { locale: ko })}
-        </h2>
-        <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-xs">
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />오픈</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-middle" />미들</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-close" />마감</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-allday" />종일</span>
-        <span className="text-muted-foreground">|</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-annual" />연차</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-half" />반차</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-substitute" />대체휴</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-sick" />병가</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-request" />요청</span>
-      </div>
-
-      {members.length === 0 ? (
-        <p className="py-8 text-center text-muted-foreground">승인된 멤버가 없습니다.</p>
-      ) : (
-        <div className="space-y-6">
-          <div className="overflow-x-auto pb-2">
-            <ScheduleGrid
-              year={year}
-              month={month}
-              days={days}
-              members={members}
-              schedules={schedules}
-              ghostSchedules={ghostSchedules}
-              currentUserId={user?.id ?? ''}
-              isManager={isManager}
-              isLocked={isLocked && !isManager}
-              onSave={handleSave}
-              onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
-              <MessageSquare className="h-4 w-4" />
-              매장 메모
-            </div>
-            <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              rows={5}
-              readOnly={!isManager}
-              defaultValue={store?.memo ?? ''}
-              onBlur={(e) => handleMemoUpdate(e.target.value)}
-              placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
-            />
-          </div>
+          <h2 className="text-lg font-semibold">
+            {format(currentMonth, 'yyyy년 M월', { locale: ko })}
+          </h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-      )}
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />오픈</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-middle" />미들</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-close" />마감</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-allday" />종일</span>
+          <span className="text-muted-foreground px-1">|</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-annual" />연차</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-half" />반차</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-sick" />병가</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-request" />요청</span>
+        </div>
+
+        <div className="overflow-x-auto pb-2">
+          <ScheduleGrid
+            year={year}
+            month={month}
+            days={days}
+            members={members}
+            schedules={schedules}
+            ghostSchedules={ghostSchedules}
+            currentUserId={user?.id ?? ''}
+            isManager={isManager}
+            isLocked={isLocked && !isManager}
+            onSave={handleSave}
+            onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+            <MessageSquare className="h-4 w-4" />
+            매장 메모
+          </div>
+          <textarea
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            rows={5}
+            readOnly={!isManager}
+            defaultValue={store?.memo ?? ''}
+            onBlur={(e) => handleMemoUpdate(e.target.value)}
+            placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
+          />
+        </div>
+      </div>
+
+      <hr className="border-t-2" />
+
+      {/* Task 5: 하이그로우 corp. 통합 캘린더 표시 */}
+      <AllSchedulesTab hideGhosts hideMemo />
     </div>
   )
 }
