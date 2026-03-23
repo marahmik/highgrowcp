@@ -35,7 +35,7 @@ export function AdminPage() {
         ))}
       </div>
 
-      {activeTab === 'schedules' && <AllSchedulesTab />}
+      {activeTab === 'schedules' && <AllSchedulesTab hideGhosts hideMemo />}
       {activeTab === 'members' && <MembersTab />}
       {activeTab === 'stores' && <StoresTab />}
     </div>
