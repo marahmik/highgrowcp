@@ -36,6 +36,11 @@ export function MyPage() {
         .select('*'),
     ])
 
+    if (membershipsRes.error) {
+      console.error(membershipsRes.error)
+      toast.error('매장 로드 실패', { description: membershipsRes.error.message })
+    }
+
     if (membershipsRes.data) setMemberships(membershipsRes.data as MemberWithStore[])
     if (storesRes.data) setAllStores(storesRes.data)
     setLoading(false)
