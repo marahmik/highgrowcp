@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,7 +15,6 @@ export function MainPage() {
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
   const profile = useAuthStore((s) => s.profile)
 
   // 이미 로그인된 경우 리다이렉트
