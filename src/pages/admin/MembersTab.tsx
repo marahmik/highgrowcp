@@ -62,6 +62,24 @@ export function MembersTab() {
     loadMembers()
   }
 
+  async function deleteMember(memberId: string, userId: string) {
+    if (!confirm('이 회원을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
+
+    // 1. store_members 삭제
+    const { error: smError } = await supabase.from('store_members').delete().eq('id', memberId)
+    if (smError) { toast.error('멤버 삭제 실패', { description: smError.message }); return }
+
+    // 2. profiles 삭제
+    await supabase.from('profiles').delete().eq('id', userId)
+
+    // 3. auth.users 삭제 (RPC 함수 필요)
+    const { error: authError } = await supabase.rpc('delete_user', { target_user_id: userId })
+    if (authError) { toast.error('계정 삭제 실패 (수동 삭제 필요)', { description: authError.message }) }
+    else { toast.success('회원이 완전히 삭제되었습니다.') }
+
+    loadMembers()
+  }
+
   if (loading) return <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
 
   const pending = members.filter((m) => m.status === 'pending')
@@ -160,6 +178,9 @@ export function MembersTab() {
             <MemberCard key={m.id} member={m}>
               <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
                 재승인
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => deleteMember(m.id, m.user_id)}>
+                삭제
               </Button>
             </MemberCard>
           ))}
