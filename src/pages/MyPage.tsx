@@ -4,6 +4,7 @@ import { Store, Plus, Clock, CheckCircle, XCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import type { StoreMember, Store as StoreType } from '@/types/database'
 
@@ -41,9 +42,16 @@ export function MyPage() {
   }
 
   async function requestJoin(storeId: string) {
-    await supabase
+    const { error } = await supabase
       .from('store_members')
       .insert({ store_id: storeId, user_id: user!.id, status: 'pending', role: 'member' })
+      
+    if (error) {
+      toast.error('가입 요청에 실패했습니다.', { description: error.message })
+      return
+    }
+    
+    toast.success('매장 가입 요청이 완료되었습니다.')
     loadData()
   }
 
