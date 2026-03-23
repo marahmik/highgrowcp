@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { format, getDay } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { ScheduleCell } from './ScheduleCell'
-import { EditModal } from './EditModal'
+import { EditDropdown } from './EditDropdown'
 import type { Schedule, Profile, WorkType, LeaveType } from '@/types/database'
 
 interface ScheduleGridProps {
@@ -22,6 +22,7 @@ interface EditTarget {
   date: Date
   workType: WorkType | null
   leaveType: LeaveType | null
+  anchorRect: { top: number; left: number; bottom: number; right: number }
 }
 
 const DAY_COLORS: Record<number, string> = {
@@ -47,7 +48,7 @@ export function ScheduleGrid({ days, members, schedules, currentUserId, isAdmin,
     return scheduleMap.get(`${userId}_${format(date, 'yyyy-MM-dd')}`)
   }
 
-  function handleCellClick(member: Profile, date: Date) {
+  function handleCellClick(member: Profile, date: Date, e: React.MouseEvent) {
     const canEdit = isAdmin || member.id === currentUserId
     if (!canEdit) return
 
@@ -55,12 +56,15 @@ export function ScheduleGrid({ days, members, schedules, currentUserId, isAdmin,
     // 일반 유저: draft/rejected만 편집 가능
     if (!isAdmin && schedule && !['draft', 'rejected'].includes(schedule.status)) return
 
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+
     setEditTarget({
       userId: member.id,
       userName: member.display_name,
       date,
       workType: (schedule?.work_type as WorkType) ?? null,
       leaveType: (schedule?.leave_type as LeaveType) ?? null,
+      anchorRect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right },
     })
   }
 
@@ -116,7 +120,7 @@ export function ScheduleGrid({ days, members, schedules, currentUserId, isAdmin,
                         leaveType={(schedule?.leave_type as LeaveType) ?? null}
                         status={schedule?.status ?? 'draft'}
                         isEditable={canEdit}
-                        onClick={() => handleCellClick(member, day)}
+                        onClick={(e) => handleCellClick(member, day, e)}
                       />
                     </td>
                   )
@@ -128,11 +132,12 @@ export function ScheduleGrid({ days, members, schedules, currentUserId, isAdmin,
       </div>
 
       {editTarget && (
-        <EditModal
+        <EditDropdown
           date={editTarget.date}
           userName={editTarget.userName}
           initialWorkType={editTarget.workType}
           initialLeaveType={editTarget.leaveType}
+          anchorRect={editTarget.anchorRect}
           onSave={handleSave}
           onClose={() => setEditTarget(null)}
         />

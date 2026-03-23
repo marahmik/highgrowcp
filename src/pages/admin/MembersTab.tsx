@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X, User } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -98,14 +98,24 @@ export function MembersTab() {
                   매니저
                 </Button>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => updateProfileRole(m.profiles.id, m.profiles.role)}
-                title={m.profiles.role === 'admin' ? '전체 관리자 해제' : '전체 관리자 지정'}
-              >
-                <User className={`h-4 w-4 ${m.profiles.role === 'admin' ? 'text-primary' : 'text-muted-foreground'}`} />
-              </Button>
+              <div className="flex items-center rounded-md bg-muted p-0.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 px-2 text-xs ${m.profiles.role !== 'admin' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`}
+                  onClick={() => m.profiles.role === 'admin' && updateProfileRole(m.profiles.id, m.profiles.role)}
+                >
+                  일반유저
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 px-2 text-xs ${m.profiles.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
+                  onClick={() => m.profiles.role !== 'admin' && updateProfileRole(m.profiles.id, m.profiles.role)}
+                >
+                  관리자
+                </Button>
+              </div>
             </MemberCard>
           ))
         )}
