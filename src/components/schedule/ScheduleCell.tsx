@@ -29,7 +29,7 @@ export function ScheduleCell({ workType, leaveType, isEditable, isSupervisor = f
       onClick={onClick}
       disabled={!isEditable}
       className={`
-        h-8 w-full rounded text-xs font-medium transition-colors
+        h-7 sm:h-8 w-full min-w-0 rounded-sm text-[8px] sm:text-[9px] xl:text-[11px] font-medium transition-colors leading-none tracking-tighter overflow-hidden text-ellipsis whitespace-nowrap
         ${bgColor}
         ${isEmpty ? 'text-muted-foreground hover:bg-muted' : ''}
         ${isEditable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}

@@ -269,7 +269,7 @@ export function StorePage() {
           <p className="py-8 text-center text-muted-foreground">승인된 멤버가 없습니다.</p>
         ) : (
           <div className="space-y-6">
-            <div className="overflow-x-auto pb-2">
+            <div className="pb-2">
               <ScheduleGrid
                 year={year}
                 month={month}
