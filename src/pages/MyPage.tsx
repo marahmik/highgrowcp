@@ -57,11 +57,11 @@ export function MyPage() {
     loadData()
   }
 
-  const activeMemberships = memberships.filter(m => m.status === 'approved' && m.role !== 'resigned')
-  const pendingMemberships = memberships.filter(m => m.status === 'pending')
+  const activeMemberships = memberships.filter((m: MemberWithStore) => m.status === 'approved' && m.role !== 'resigned')
+  const pendingMemberships = memberships.filter((m: MemberWithStore) => m.status === 'pending')
   
-  const joinedStoreIds = new Set(memberships.map((m) => m.store_id))
-  const availableStores = allStores.filter((s) => !joinedStoreIds.has(s.id))
+  const joinedStoreIds = new Set(memberships.map((m: MemberWithStore) => m.store_id))
+  const availableStores = allStores.filter((s: StoreType) => !joinedStoreIds.has(s.id))
 
   if (loading) {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
@@ -71,13 +71,14 @@ export function MyPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <h1 className="text-2xl font-bold">마이페이지</h1>
 
+      {/* 내 매장 목록 */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">내 매장</h2>
         {activeMemberships.length === 0 ? (
           <p className="border rounded-xl p-8 text-center text-muted-foreground bg-slate-50/50">아직 소속된 매장이 없습니다.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {activeMemberships.map((m) => (
+            {activeMemberships.map((m: MemberWithStore) => (
               <Button
                 key={m.id}
                 variant="outline"
@@ -100,6 +101,7 @@ export function MyPage() {
         )}
       </section>
 
+      {/* 대기 중인 요청 */}
       {pendingMemberships.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -107,7 +109,7 @@ export function MyPage() {
             승인 대기 중
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {pendingMemberships.map((m) => (
+            {pendingMemberships.map((m: MemberWithStore) => (
               <div key={m.id} className="flex items-center justify-between p-4 border rounded-xl bg-amber-50/30 border-amber-100">
                 <div className="flex items-center gap-3">
                   <Store className="h-5 w-5 text-amber-500" />
@@ -120,10 +122,11 @@ export function MyPage() {
         </section>
       )}
 
+      {/* 가입 가능한 매장 */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">매장 가입하기</h2>
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-          {availableStores.map((store) => (
+          {availableStores.map((store: StoreType) => (
             <div key={store.id} className="p-4 border rounded-xl bg-white space-y-3">
               <div className="font-bold">{store.name}</div>
               <Button 

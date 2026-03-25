@@ -128,11 +128,10 @@ export function MembersTab() {
 
   if (loading) return <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
 
-  const pending = members.filter((m) => m.status === 'pending')
-  const approved = members.filter((m) => m.status === 'approved' && m.role !== 'resigned')
-  const resigned = members.filter((m) => m.role === 'resigned')
-  const rejected = members.filter((m) => m.status === 'rejected')
-  const banned = members.filter((m) => m.status === 'banned')
+  const pending = members.filter((m: MemberWithDetails) => m.status === 'pending')
+  const approved = members.filter((m: MemberWithDetails) => m.status === 'approved' && m.role !== 'resigned')
+  const resigned = members.filter((m: MemberWithDetails) => m.role === 'resigned')
+  const banned = members.filter((m: MemberWithDetails) => m.status === 'banned')
 
   return (
     <div className="space-y-8">

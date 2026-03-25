@@ -201,6 +201,7 @@ export function StorePage() {
       const active = enriched.filter(m => m.storeRole !== 'resigned')
       setMembers([...active, ...ghostMembers])
 
+      const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
       if (myMembership) {
         setCurrentUserRole(myMembership.role)
         if (myMembership.role === 'resigned' && profile?.role !== 'admin') {
