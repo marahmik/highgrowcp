@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Listen for auth state changes (login/logout/token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setSession(session)
         if (session?.user) {
           // Use setTimeout to avoid Supabase's known race condition
