@@ -45,6 +45,11 @@ export interface MemberWithRole extends Profile {
   ghostSlot?: number
 }
 
+interface PendingWork {
+  work_type: WorkType | null
+  leave_type: LeaveType | null
+}
+
 export function StorePage() {
   const { storeId } = useParams<{ storeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -71,19 +76,20 @@ export function StorePage() {
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
   // 미저장된 변경사항 상태: Key="userId_date"
-  const [pendingChanges, setPendingChanges] = useState<Record<string, { work_type: WorkType | null; leave_type: LeaveType | null }>>({})
+  const [pendingChanges, setPendingChanges] = useState<Record<string, PendingWork>>({})
 
   // DB 데이터와 변경사항 병합 (UI 즉시 반영용)
   const displaySchedules = useMemo(() => {
     const merged = [...schedules]
     Object.entries(pendingChanges).forEach(([key, change]) => {
+      const c = change as PendingWork
       if (key.includes('_ghost_')) return // Ghost는 별도 처리
       const [userId, date] = key.split('_')
       const idx = merged.findIndex(s => s.user_id === userId && s.date === date)
       if (idx !== -1) {
-        merged[idx] = { ...merged[idx], work_type: change.work_type, leave_type: change.leave_type }
+        merged[idx] = { ...merged[idx], work_type: c.work_type, leave_type: c.leave_type }
       } else {
-        merged.push({ user_id: userId, date, work_type: change.work_type, leave_type: change.leave_type, status: 'approved' } as Schedule)
+        merged.push({ user_id: userId, date, work_type: c.work_type, leave_type: c.leave_type, status: 'approved' } as Schedule)
       }
     })
     return merged
@@ -92,14 +98,15 @@ export function StorePage() {
   const displayGhostSchedules = useMemo(() => {
     const merged = [...ghostSchedules]
     Object.entries(pendingChanges).forEach(([key, change]) => {
+      const c = change as PendingWork
       if (!key.includes('_ghost_')) return
       const [slotStr, date] = key.replace('ghost-', '').split('_ghost_')
       const slot = parseInt(slotStr)
       const idx = merged.findIndex(g => g.slot === slot && g.date === date)
       if (idx !== -1) {
-        merged[idx] = { ...merged[idx], work_type: change.work_type, leave_type: change.leave_type }
+        merged[idx] = { ...merged[idx], work_type: c.work_type, leave_type: c.leave_type }
       } else {
-        merged.push({ store_id: storeId!, slot, date, work_type: change.work_type, leave_type: change.leave_type } as GhostSchedule)
+        merged.push({ store_id: storeId!, slot, date, work_type: c.work_type, leave_type: c.leave_type } as GhostSchedule)
       }
     })
     return merged
@@ -186,7 +193,6 @@ export function StorePage() {
       // 직급순 정렬
       enriched.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
 
-      // Task 1: 수퍼바이저 매장 캘린더의 단기알바 1, 2만 삭제
       const ghostMembers: MemberWithRole[] = storeRes.data?.name?.includes('수퍼바이저') ? [] : [
         { id: `ghost-${storeId}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
         { id: `ghost-${storeId}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
@@ -211,9 +217,7 @@ export function StorePage() {
     setLoading(false)
   }, [storeId, monthKey, user?.id, profile?.role, selectedMemberId])
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  useEffect(() => { loadData() }, [loadData])
 
   // 실시간 구독
   useEffect(() => {
@@ -247,7 +251,6 @@ export function StorePage() {
     if (!storeId) return
     if (isLocked && !isManager) return
 
-    // 일반 직원 권한 체크: '요청' 티커만 허용
     if (!isManager) {
       if (userId !== user?.id) return
       if (workType !== null || (leaveType !== null && leaveType !== 'request')) {
@@ -276,27 +279,27 @@ export function StorePage() {
       const ghostDeletes: { slot: number; date: string }[] = []
 
       Object.entries(pendingChanges).forEach(([key, change]) => {
+        const c = change as PendingWork
         if (key.includes('_ghost_')) {
           const [slotStr, date] = key.replace('ghost-', '').split('_ghost_')
           const slot = parseInt(slotStr)
-          if (!change.work_type && !change.leave_type) {
+          if (!c.work_type && !c.leave_type) {
             ghostDeletes.push({ slot, date })
           } else {
-            ghostUpserts.push({ store_id: storeId, slot, date, ...change })
+            ghostUpserts.push({ store_id: storeId, slot, date, ...c })
           }
         } else {
           const [userId, date] = key.split('_')
-          if (!change.work_type && !change.leave_type) {
+          if (!c.work_type && !c.leave_type) {
             scheduleDeletes.push({ userId, date })
           } else {
-            scheduleUpserts.push({ store_id: storeId, user_id: userId, date, ...change, status: 'approved' })
+            scheduleUpserts.push({ store_id: storeId, user_id: userId, date, ...c, status: 'approved' })
           }
         }
       })
 
-      const promises: Promise<any>[] = []
+      const promises: any[] = []
 
-      // 1. Regular schedules
       if (scheduleUpserts.length > 0) {
         promises.push(supabase.from('schedules').upsert(scheduleUpserts, { onConflict: 'store_id,user_id,date' }))
       }
@@ -304,7 +307,6 @@ export function StorePage() {
         promises.push(supabase.from('schedules').delete().eq('store_id', storeId).eq('user_id', d.userId).eq('date', d.date))
       })
 
-      // 2. Ghost schedules
       if (ghostUpserts.length > 0) {
         promises.push(supabase.from('ghost_schedules').upsert(ghostUpserts, { onConflict: 'store_id,slot,date' }))
       }
@@ -500,7 +502,7 @@ export function StorePage() {
 
       {/* 저장 버튼 (변경사항이 있을 때만 표시) */}
       {Object.keys(pendingChanges).length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 p-4 bg-white/90 backdrop-blur-md border shadow-2xl rounded-2xl animate-in fade-in slide-in-from-bottom-4 min-w-[300px] justify-between">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 p-4 bg-white/90 backdrop-blur-md border shadow-2xl rounded-2xl min-w-[300px] justify-between">
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Unsaved Changes</span>
             <span className="text-sm font-bold">
