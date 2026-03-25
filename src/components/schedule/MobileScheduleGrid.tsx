@@ -100,9 +100,12 @@ export function MobileScheduleGrid({ currentMonth, days, members, schedules, cur
       }
     }
     if (s.work_type) {
+      const isRecordSupervisor = (s as any).stores?.name?.includes('수퍼바이저')
+      const effectiveIsSupervisor = isRecordSupervisor ?? isSupervisorStore
+
       return { 
         bg: WORK_TYPE_COLORS[s.work_type as WorkType] || 'bg-white', 
-        label: isSupervisorStore ? SUPERVISOR_WORK_LABELS[s.work_type as WorkType] : WORK_TYPE_LABELS[s.work_type as WorkType],
+        label: effectiveIsSupervisor ? SUPERVISOR_WORK_LABELS[s.work_type as WorkType] : WORK_TYPE_LABELS[s.work_type as WorkType],
         color: 'text-foreground'
       }
     }

@@ -29,7 +29,7 @@ export function HistoryPage() {
 
     const { data, error } = await supabase
       .from('schedules')
-      .select('*')
+      .select('*, stores(*)')
       .eq('user_id', user.id)
       .gte('date', monthStart)
       .lte('date', monthEnd)
