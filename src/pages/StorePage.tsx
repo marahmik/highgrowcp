@@ -48,7 +48,8 @@ export interface MemberWithRole extends Profile {
 export function StorePage() {
   const { storeId } = useParams<{ storeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { user } = useAuthStore()
+  const { user, profile } = useAuthStore()
+  const isSystemAdmin = profile?.role === 'admin'
 
   const monthParam = searchParams.get('month')
   const monthKey = monthParam ?? format(new Date(), 'yyyy-MM')
@@ -63,7 +64,11 @@ export function StorePage() {
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
 
-  const isManager = currentUserRole === 'admin'
+  // 모바일에서 선택된 멤버 (기본값: 본인)
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+
+  const isStoreManager = currentUserRole === 'admin'
+  const isManager = isStoreManager || isSystemAdmin
   const isLocked = store?.locked ?? false
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
@@ -158,7 +163,15 @@ export function StorePage() {
       setMembers([...active, ...ghostMembers])
 
       const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
-      if (myMembership) setCurrentUserRole(myMembership.role)
+      if (myMembership) {
+        setCurrentUserRole(myMembership.role)
+      } else if (isSystemAdmin) {
+        setCurrentUserRole('admin') // 시스템 관리자는 매장 관리자 권한 부여
+      }
+
+      if (!selectedMemberId && user?.id) {
+        setSelectedMemberId(user.id)
+      }
     }
     if (schedulesRes.data) setSchedules(schedulesRes.data)
     if (ghostRes.data) setGhostSchedules(ghostRes.data as GhostSchedule[])
@@ -328,17 +341,34 @@ export function StorePage() {
           <div className="space-y-6">
             <div className="pb-2">
               {isMobile ? (
-                <MobileScheduleGrid
-                  currentMonth={currentMonth}
-                  days={days}
-                  members={members}
-                  schedules={schedules}
-                  currentUserId={user?.id ?? ''}
-                  isManager={isManager}
-                  isLocked={isLocked && !isManager}
-                  isSupervisorStore={isSupervisorStore}
-                  onSave={handleSave}
-                />
+                <div className="space-y-4">
+                  {isManager && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                      {members.map(m => (
+                        <Button
+                          key={m.id}
+                          size="sm"
+                          variant={selectedMemberId === m.id ? 'default' : 'outline'}
+                          onClick={() => setSelectedMemberId(m.id)}
+                          className="shrink-0 text-[11px] h-8"
+                        >
+                          {m.display_name}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  <MobileScheduleGrid
+                    currentMonth={currentMonth}
+                    days={days}
+                    members={members}
+                    schedules={schedules}
+                    currentUserId={selectedMemberId || user?.id || ''}
+                    isManager={isManager}
+                    isLocked={isLocked && !isManager}
+                    isSupervisorStore={isSupervisorStore}
+                    onSave={handleSave}
+                  />
+                </div>
               ) : (
                 <ScheduleGrid
                   year={year}
