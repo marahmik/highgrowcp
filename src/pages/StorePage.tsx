@@ -48,8 +48,7 @@ export interface MemberWithRole extends Profile {
 export function StorePage() {
   const { storeId } = useParams<{ storeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { user, profile } = useAuthStore()
-  const isSystemAdmin = profile?.role === 'admin'
+  const { user, profile, isAdmin } = useAuthStore()
 
   const monthParam = searchParams.get('month')
   const monthKey = monthParam ?? format(new Date(), 'yyyy-MM')
@@ -67,8 +66,7 @@ export function StorePage() {
   // 모바일에서 선택된 멤버 (기본값: 본인)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
 
-  const isStoreManager = currentUserRole === 'admin'
-  const isManager = isStoreManager || isSystemAdmin
+  const isManager = isAdmin() // 전체 관리자 또는 매니저 직급 확인
   const isLocked = store?.locked ?? false
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
@@ -165,8 +163,8 @@ export function StorePage() {
       const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
       if (myMembership) {
         setCurrentUserRole(myMembership.role)
-      } else if (isSystemAdmin) {
-        setCurrentUserRole('admin') // 시스템 관리자는 매장 관리자 권한 부여
+      } else if (profile?.role === 'admin') {
+        setCurrentUserRole('admin') // 시스템 관리자는 매니저 권한 부여
       }
 
       if (!selectedMemberId && user?.id) {
@@ -176,7 +174,7 @@ export function StorePage() {
     if (schedulesRes.data) setSchedules(schedulesRes.data)
     if (ghostRes.data) setGhostSchedules(ghostRes.data as GhostSchedule[])
     setLoading(false)
-  }, [storeId, monthKey])
+  }, [storeId, monthKey, user?.id, profile?.role]) // profile.role 추가로 권한 변경 시 재로드
 
   useEffect(() => {
     loadData()
@@ -230,26 +228,46 @@ export function StorePage() {
     if (ghostMatch) {
       const slot = parseInt(ghostMatch[1])
       if (!workType && !leaveType) {
-        await supabase.from('ghost_schedules').delete()
+        const { error } = await supabase.from('ghost_schedules').delete()
           .eq('store_id', storeId).eq('slot', slot).eq('date', date)
+        if (error) {
+          console.error('Ghost delete error:', error)
+          toast.error('삭제 실패: ' + error.message)
+        }
       } else {
-        await supabase.from('ghost_schedules').upsert(
+        const { error } = await supabase.from('ghost_schedules').upsert(
           { store_id: storeId, slot, date, work_type: workType, leave_type: leaveType },
           { onConflict: 'store_id,slot,date' }
         )
+        if (error) {
+          console.error('Ghost upsert error:', error)
+          toast.error('저장 실패: ' + error.message)
+        }
       }
       loadData()
       return
     }
 
     if (!workType && !leaveType) {
-      await supabase.from('schedules').delete()
+      const { error } = await supabase.from('schedules').delete()
         .eq('store_id', storeId).eq('user_id', userId).eq('date', date)
+      if (error) {
+        console.error('Schedule delete error:', error)
+        toast.error('삭제 실패: ' + error.message)
+      }
     } else {
-      await supabase.from('schedules').upsert(
+      const { error } = await supabase.from('schedules').upsert(
         { store_id: storeId, user_id: userId, date, work_type: workType, leave_type: leaveType, status: 'approved' },
         { onConflict: 'store_id,user_id,date' }
       )
+      if (error) {
+        console.error('Schedule upsert error:', error)
+        if (error.code === '42501') {
+          toast.error('수정 권한이 없습니다 (데이터베이스 권한)')
+        } else {
+          toast.error('저장 실패: ' + error.message)
+        }
+      }
     }
     loadData()
   }

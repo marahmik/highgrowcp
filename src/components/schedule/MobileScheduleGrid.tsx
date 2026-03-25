@@ -60,7 +60,8 @@ export function MobileScheduleGrid({ currentMonth, days, members, schedules, cur
 
   function handleCellClick(date: Date, e: React.MouseEvent) {
     if (isLocked) return
-    if (!myInfo) return
+    // 매니저면 myInfo가 없더라도(=매장 멤버가 아니더라도) 수정 가능해야 함
+    if (!myInfo && !isManager) return
 
     const key = format(date, 'yyyy-MM-dd')
     const s = scheduleMap.get(key)
@@ -69,8 +70,8 @@ export function MobileScheduleGrid({ currentMonth, days, members, schedules, cur
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
 
     setEditTarget({
-      userId: myInfo.id,
-      userName: myInfo.display_name,
+      userId: currentUserId, // myInfo.id 대신 prop으로 받은 currentUserId 사용 (매니저가 다른 사람 볼 때)
+      userName: myInfo?.display_name || '관리자',
       date,
       workType,
       leaveType,
