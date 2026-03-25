@@ -36,13 +36,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </span>
                   )}
                 </span>
-                {isAdmin && (
+                {isAdmin ? (
                   <>
                     <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
                       관리
                     </Button>
                     <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
                       내근무
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/history')}>
+                      근무기록
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
+                      내근무
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/history')}>
+                      근무기록
                     </Button>
                   </>
                 )}
