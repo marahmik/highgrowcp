@@ -47,7 +47,7 @@ export interface MemberWithRole extends Profile {
 export function StorePage() {
   const { storeId } = useParams<{ storeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { user, profile } = useAuthStore()
+  const { user } = useAuthStore()
 
   const monthParam = searchParams.get('month')
   const monthKey = monthParam ?? format(new Date(), 'yyyy-MM')
