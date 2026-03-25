@@ -1,13 +1,32 @@
+import { useState, useEffect, ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogOut, User, Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout({ children }: { children: ReactNode }) {
   const { session, profile, isAdmin: checkIsAdmin } = useAuthStore()
   const navigate = useNavigate()
   const isAdmin = checkIsAdmin()
+
+  const [hasActiveStore, setHasActiveStore] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function checkMembership() {
+      if (!session?.user) return
+      const { data } = await supabase
+        .from('store_members')
+        .select('role, status')
+        .eq('user_id', session.user.id)
+      
+      const active = data?.some(m => m.status === 'approved' && m.role !== 'resigned')
+      setHasActiveStore(!!active)
+      setLoading(false)
+    }
+    checkMembership()
+  }, [session])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -36,23 +55,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </span>
                   )}
                 </span>
-                {isAdmin ? (
+                {!loading && (
                   <>
-                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
-                      관리
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
-                      내근무
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/history')}>
-                      근무기록
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
-                      내근무
-                    </Button>
+                    {isAdmin && (
+                      <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
+                        관리
+                      </Button>
+                    )}
+                    {hasActiveStore && (
+                      <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
+                        내근무
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/history')}>
                       근무기록
                     </Button>

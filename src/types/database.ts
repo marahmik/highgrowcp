@@ -30,6 +30,7 @@ export interface StoreMember {
   status: MemberStatus
   role: MemberRole
   annual_leave: number
+  resignation_date: string | null
   created_at: string
 }
 

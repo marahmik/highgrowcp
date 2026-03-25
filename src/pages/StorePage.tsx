@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare, Info } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare, Info, Ban } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -201,9 +201,12 @@ export function StorePage() {
       const active = enriched.filter(m => m.storeRole !== 'resigned')
       setMembers([...active, ...ghostMembers])
 
-      const myMembership = membersRes.data.find((m: any) => m.user_id === user?.id)
       if (myMembership) {
         setCurrentUserRole(myMembership.role)
+        if (myMembership.role === 'resigned' && profile?.role !== 'admin') {
+          setLoading(false)
+          return
+        }
       } else if (profile?.role === 'admin') {
         setCurrentUserRole('admin') // 시스템 관리자는 매니저 권한 부여
       }
@@ -358,6 +361,20 @@ export function StorePage() {
 
   if (loading && !Object.keys(pendingChanges).length) {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
+  }
+
+  // 퇴사자 접근 차단
+  if (currentUserRole === 'resigned' && !isAdmin()) {
+    return (
+      <div className="mx-auto max-w-md py-20 text-center space-y-4">
+        <Ban className="h-12 w-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-bold">접근 권한이 없습니다</h2>
+        <p className="text-muted-foreground">관리자에 의해 이 매장에서 퇴사 처리된 상태입니다.</p>
+        <Button variant="outline" onClick={() => window.location.href = '/history'}>
+          내 근무기록 확인하기
+        </Button>
+      </div>
+    )
   }
 
   return (
