@@ -10,6 +10,7 @@ import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { AllSchedulesTab } from '@/pages/admin/AllSchedulesTab'
 import type { Schedule, Profile, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import { toast } from 'sonner'
+import { MobileScheduleGrid } from '@/components/schedule/MobileScheduleGrid'
 
 // 직급 순서 (낮을수록 위에 표시)
 export const ROLE_ORDER: Record<string, number> = {
@@ -65,6 +66,29 @@ export function StorePage() {
   const isManager = currentUserRole === 'admin'
   const isLocked = store?.locked ?? false
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
+
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // [임시 서비스] 모든 매장 메모 초기화 (2024년 3월 25일 기준 1회 실행)
+  useEffect(() => {
+    const resetAllMemos = async () => {
+      const hasReset = localStorage.getItem('memos_reset_20240325v2')
+      if (!hasReset) {
+        const { error } = await supabase.from('stores').update({ memo: null }).neq('id', '00000000-0000-0000-0000-000000000000')
+        if (!error) {
+          localStorage.setItem('memos_reset_20240325v2', 'true')
+          console.log('All store memos have been reset.')
+        }
+      }
+    }
+    resetAllMemos()
+  }, [])
 
   const memoObj = useMemo(() => {
     if (!store?.memo) return {}
@@ -241,11 +265,22 @@ export function StorePage() {
           <div>
             <h1 className="text-xl font-bold">
               {store?.name}
-              {isLocked && <span className="ml-2 text-sm text-red-500">🔒 잠금됨</span>}
+              {isLocked && <span className="ml-2 text-sm text-red-500">🔒 <span className="hidden sm:inline">잠금됨</span></span>}
             </h1>
-            <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
+            <p className="text-sm text-muted-foreground">
+              {isMobile ? (
+                <span className="flex items-center gap-1.5">
+                  <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${ROLE_COLORS[currentUserRole]}`}>
+                    {ROLE_LABELS[currentUserRole]}
+                  </span>
+                  내 스케줄
+                </span>
+              ) : (
+                `${members.filter(m => !m.isGhost).length}명 근무`
+              )}
+            </p>
           </div>
-          {isManager && (
+          {isManager && !isMobile && (
             <Button
               size="sm"
               variant={isLocked ? 'destructive' : 'outline'}
@@ -256,13 +291,12 @@ export function StorePage() {
           )}
         </div>
 
-        {/* Task 2: 수퍼바이저 매장 캘린더 상단 도움텍스트 */}
+        {/* Task 2: 수퍼바이저 매장 캘린더 상단 도움텍스트 (모바일에서는 간소화) */}
         {isSupervisorStore && (
-          <div className="flex border-l-4 border-slate-800 bg-slate-50 p-4 rounded-r-lg items-center gap-3">
-            <Info className="h-5 w-5 text-slate-600 shrink-0" />
-            <div className="text-sm text-slate-600">
-              <p className="font-bold">수퍼바이저 지점 안내</p>
-              <p className="text-xs opacity-80">수퍼바이저의 근무 유형은 파견 지점(송도, 인천, 중동, 남양주)을 의미합니다.</p>
+          <div className="flex border-l-4 border-slate-800 bg-slate-50 p-3 rounded-r-lg items-center gap-3">
+            <Info className="h-4 w-4 text-slate-600 shrink-0" />
+            <div className="text-xs text-slate-600">
+              {isMobile ? '수퍼바이저 전용 파견지별 색상 적용됨' : '수퍼바이저의 근무 유형은 파견 지점(송도, 인천, 중동, 남양주)을 의미합니다.'}
             </div>
           </div>
         )}
@@ -279,63 +313,76 @@ export function StorePage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />{isSupervisorStore ? '송도' : '오픈'}</span>
+        <div className="flex flex-wrap gap-2 text-[10px] sm:text-xs">
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-open" />{isSupervisorStore ? '송인' : '오픈'}</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-middle" />{isSupervisorStore ? '인천' : '미들'}</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-close" />{isSupervisorStore ? '중동' : '마감'}</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-allday" />{isSupervisorStore ? '남양주' : '종일'}</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-work-allday" />{isSupervisorStore ? '남양' : '종일'}</span>
           <span className="text-muted-foreground">|</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-annual" />연차</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-half" />반차</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-substitute" />대체휴</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-sick" />병가</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-request" />요청</span>
         </div>
-
         {members.length === 0 ? (
           <p className="py-8 text-center text-muted-foreground">승인된 멤버가 없습니다.</p>
         ) : (
           <div className="space-y-6">
             <div className="pb-2">
-              <ScheduleGrid
-                year={year}
-                month={month}
-                days={days}
-                members={members}
-                schedules={schedules}
-                ghostSchedules={ghostSchedules}
-                currentUserId={user?.id ?? ''}
-                isManager={isManager}
-                isLocked={isLocked && !isManager}
-                isSupervisorStore={isSupervisorStore} // Task 3 적용
-                onSave={handleSave}
-                onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
-              />
+              {isMobile ? (
+                <MobileScheduleGrid
+                  currentMonth={currentMonth}
+                  days={days}
+                  members={members}
+                  schedules={schedules}
+                  currentUserId={user?.id ?? ''}
+                  isManager={isManager}
+                  isLocked={isLocked && !isManager}
+                  isSupervisorStore={isSupervisorStore}
+                  onSave={handleSave}
+                />
+              ) : (
+                <ScheduleGrid
+                  year={year}
+                  month={month}
+                  days={days}
+                  members={members}
+                  schedules={schedules}
+                  ghostSchedules={ghostSchedules}
+                  currentUserId={user?.id ?? ''}
+                  isManager={isManager}
+                  isLocked={isLocked && !isManager}
+                  isSupervisorStore={isSupervisorStore}
+                  onSave={handleSave}
+                  onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
+                />
+              )}
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
-                <MessageSquare className="h-4 w-4" />
-                매장 메모
+            {!isMobile && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+                  <MessageSquare className="h-4 w-4" />
+                  매장 메모
+                </div>
+                <textarea
+                  key={monthKey}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  rows={5}
+                  readOnly={!isManager}
+                  defaultValue={currentMemo}
+                  onBlur={(e) => handleMemoUpdate(e.target.value)}
+                  placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
+                />
               </div>
-              <textarea
-                key={monthKey}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                rows={5}
-                readOnly={!isManager}
-                defaultValue={currentMemo}
-                onBlur={(e) => handleMemoUpdate(e.target.value)}
-                placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
-              />
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      <hr className="border-t-2" />
+      {!isMobile && <hr className="border-t-2" />}
 
-      {/* 매장 페이지 하단 통합 캘린더 필터링 (수퍼바이저 매장만) */}
-      <AllSchedulesTab storeNameFilter="수퍼바이저" />
+      {/* 매장 페이지 하단 통합 캘린더 필터링 (수퍼바이저 매장만, 모바일 제외) */}
+      {!isMobile && <AllSchedulesTab storeNameFilter="수퍼바이저" />}
     </div>
   )
 }
+
