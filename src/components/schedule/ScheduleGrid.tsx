@@ -122,7 +122,7 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
                 이름
               </th>
               <th className="w-[28px] md:w-[36px] border-r bg-muted px-0.5 py-1 text-center text-[9px] sm:text-[10px] font-semibold overflow-hidden">
-                연휴
+                연차
               </th>
               {days.map((day) => {
                 const dow = getDay(day)
