@@ -31,23 +31,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setSession, setProfile, setLoading])
 
   async function fetchProfile(userId: string) {
-    const [{ data: profile }, { data: memberships }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).single(),
-      supabase.from('store_members').select('role').eq('user_id', userId)
-    ])
+    try {
+      const [{ data: profile }, { data: memberships }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.from('store_members').select('role').eq('user_id', userId)
+      ])
 
-    // Race condition guard: If session was lost while fetching, abort setting profile
-    if (!useAuthStore.getState().session) {
-      return
+      // Race condition guard: If session was lost while fetching, abort setting profile
+      if (!useAuthStore.getState().session) {
+        return
+      }
+
+      setProfile(profile)
+      
+      // Check if user is an admin or manager in any store
+      const isManager = memberships?.some(m => m.role === 'admin') || false
+      useAuthStore.getState().setIsStoreManager(isManager)
+    } catch (err) {
+      console.error('프로필 로드 실패:', err)
+    } finally {
+      setLoading(false)
     }
-
-    setProfile(profile)
-    
-    // Check if user is an admin or manager in any store
-    const isManager = memberships?.some(m => m.role === 'admin') || false
-    useAuthStore.getState().setIsStoreManager(isManager)
-    
-    setLoading(false)
   }
 
   return <>{children}</>
