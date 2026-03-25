@@ -62,9 +62,22 @@ export function StorePage() {
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
 
-  const isManager = currentUserRole === 'admin' || profile?.role === 'admin'
+  const isManager = currentUserRole === 'admin'
   const isLocked = store?.locked ?? false
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
+
+  const memoObj = useMemo(() => {
+    if (!store?.memo) return {}
+    try {
+      const parsed = JSON.parse(store.memo)
+      if (typeof parsed === 'object' && parsed !== null) return parsed
+    } catch {
+      // legacy fallback
+    }
+    return { 'legacy': store.memo }
+  }, [store?.memo])
+
+  const currentMemo = memoObj[monthKey] ?? (memoObj['legacy'] ?? '')
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
@@ -164,6 +177,18 @@ export function StorePage() {
     if (!storeId) return
     if (isLocked && !isManager) return
 
+    // 일반 직원 권한 체크: '요청' 티커만 허용
+    if (!isManager) {
+      // 본인 것이 아니면 수정 불가 (ScheduleGrid에서도 막혀있지만 이중 체크)
+      if (userId !== user?.id) return
+      
+      // 근무(workType) 설정 불가, 휴무(leaveType)는 'request'만 가능
+      if (workType !== null || (leaveType !== null && leaveType !== 'request')) {
+        toast.error('일반 직급은 "요청" 티커만 설정할 수 있습니다.')
+        return
+      }
+    }
+
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
     if (ghostMatch) {
       const slot = parseInt(ghostMatch[1])
@@ -197,9 +222,11 @@ export function StorePage() {
     loadData()
   }
 
-  async function handleMemoUpdate(memo: string) {
-    if (!storeId) return
-    const { error } = await supabase.from('stores').update({ memo }).eq('id', storeId)
+  async function handleMemoUpdate(memoText: string) {
+    if (!storeId || !store) return
+    const newMemoObj = { ...memoObj, [monthKey]: memoText }
+    const newMemoString = JSON.stringify(newMemoObj)
+    const { error } = await supabase.from('stores').update({ memo: newMemoString }).eq('id', storeId)
     if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
   }
 
@@ -218,7 +245,7 @@ export function StorePage() {
             </h1>
             <p className="text-sm text-muted-foreground">{members.filter(m => !m.isGhost).length}명 근무</p>
           </div>
-          {profile?.role === 'admin' && (
+          {isManager && (
             <Button
               size="sm"
               variant={isLocked ? 'destructive' : 'outline'}
@@ -292,10 +319,11 @@ export function StorePage() {
                 매장 메모
               </div>
               <textarea
+                key={monthKey}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 rows={5}
                 readOnly={!isManager}
-                defaultValue={store?.memo ?? ''}
+                defaultValue={currentMemo}
                 onBlur={(e) => handleMemoUpdate(e.target.value)}
                 placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
               />
