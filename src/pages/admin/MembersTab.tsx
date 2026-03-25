@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Check, X, Ban, Trash2, UserMinus, Edit2, Info } from 'lucide-react'
+import { Check, X, Ban, Trash2, UserMinus, Edit2, Info, Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import type { Profile, StoreMember, Store } from '@/types/database'
 
@@ -80,6 +81,30 @@ export function MembersTab() {
     loadMembers()
   }
 
+  async function updateResignationDate(memberId: string, userId: string, storeId: string, date: string) {
+    if (!date) return
+    const { error } = await supabase.from('store_members').update({ resignation_date: date }).eq('id', memberId)
+    if (error) {
+      toast.error('퇴사일 저장 실패', { description: error.message })
+      return
+    }
+
+    // 퇴사일 이후 스케줄 삭제
+    const { error: delError } = await supabase
+      .from('schedules')
+      .delete()
+      .eq('store_id', storeId)
+      .eq('user_id', userId)
+      .gt('date', date)
+
+    if (delError) {
+      toast.error('퇴사일 이후 스케줄 삭제 실패', { description: delError.message })
+    } else {
+      toast.success('퇴사일이 설정되고 이후 스케줄이 정리되었습니다.')
+      loadMembers()
+    }
+  }
+
   async function leaveStore(memberId: string) {
     if (!confirm('해당 매장에서 이 회원을 제외하시겠습니까? (매장에서만 삭제되고 계정은 유지됩니다. 타 지점 발령 시 사용하세요)')) return
     const { error } = await supabase.from('store_members').delete().eq('id', memberId)
@@ -90,28 +115,22 @@ export function MembersTab() {
 
   async function deleteMemberPermanently(userId: string) {
     if (!confirm('이 회원을 완전히 삭제하시겠습니까? (DB 및 계정 전체 삭제) 이 작업은 되돌릴 수 없습니다.')) return
-
-    // 1. 소속 정보 삭제
     await supabase.from('store_members').delete().eq('user_id', userId)
-
-    // 2. 프로필 삭제
     await supabase.from('profiles').delete().eq('id', userId)
-
-    // 3. Auth 삭제 (Edge function 또는 RPC 필요)
     const { error: authError } = await supabase.rpc('delete_user', { target_user_id: userId })
     if (authError) {
       toast.error('계정 삭제 실패 (수동 삭제 필요)', { description: authError.message })
     } else {
       toast.success('회원이 완전히 삭제되었습니다.')
     }
-
     loadMembers()
   }
 
   if (loading) return <div className="py-8 text-center text-muted-foreground">로딩 중...</div>
 
   const pending = members.filter((m) => m.status === 'pending')
-  const approved = members.filter((m) => m.status === 'approved')
+  const approved = members.filter((m) => m.status === 'approved' && m.role !== 'resigned')
+  const resigned = members.filter((m) => m.role === 'resigned')
   const rejected = members.filter((m) => m.status === 'rejected')
   const banned = members.filter((m) => m.status === 'banned')
 
@@ -134,7 +153,7 @@ export function MembersTab() {
         </section>
       )}
 
-      {/* 승인됨 */}
+      {/* 활성 멤버 */}
       <section className="space-y-2">
         <h3 className="font-semibold text-green-600">활성 멤버 ({approved.length})</h3>
         {approved.length === 0 ? (
@@ -184,13 +203,50 @@ export function MembersTab() {
         )}
       </section>
 
+      {/* 퇴사자 목록 */}
+      {resigned.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="font-semibold text-red-800 flex items-center gap-2">
+            퇴사자 목록 ({resigned.length})
+          </h3>
+          {resigned.map((m) => (
+            <MemberCard key={m.id} member={m} onRename={() => renameMember(m.profiles.id, m.profiles.display_name)}>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                  <Input 
+                    type="date"
+                    className="h-7 w-32 pl-7 text-[10px] bg-white border-none shadow-sm focus-visible:ring-1"
+                    defaultValue={m.resignation_date || ''}
+                    onChange={(e) => updateResignationDate(m.id, m.user_id, m.store_id, e.target.value)}
+                    title="퇴사일을 지정하면 해당 일자 이후의 모든 스케줄이 자동 삭제됩니다."
+                  />
+                </div>
+                <div className="flex items-center rounded-md bg-muted p-0.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px] text-primary hover:bg-white"
+                    onClick={() => updateStoreRole(m.id, 'parttimer')}
+                  >
+                    복직처리
+                  </Button>
+                </div>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => leaveStore(m.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </MemberCard>
+          ))}
+        </section>
+      )}
+
       {/* 미소속 인원 */}
       {unaffiliated.length > 0 && (
         <section className="space-y-2">
           <h3 className="font-semibold text-slate-600 flex items-center gap-2">
             <Info className="h-4 w-4" /> 미소속 인원 ({unaffiliated.length})
           </h3>
-          <p className="text-xs text-muted-foreground ml-6 mb-2">어떠한 매장에도 가입 신청을 하지 않았거나 소속되지 않은 인원입니다.</p>
           {unaffiliated.map((p) => (
             <div key={p.id} className="flex items-center justify-between p-3 border rounded-xl bg-slate-50/50">
               <div className="flex items-center gap-3">
@@ -201,30 +257,12 @@ export function MembersTab() {
                       <Edit2 className="h-3 w-3" />
                     </button>
                   </div>
-                  <div className="flex gap-2 mt-1">
-                    <Badge variant="outline" className="text-[10px] bg-white">매장 정보 없음</Badge>
-                    {p.role === 'admin' && <Badge className="text-[10px] bg-slate-800 text-white">전체관리자</Badge>}
-                  </div>
                 </div>
               </div>
               <div className="flex gap-2 items-center">
                 <div className="flex items-center rounded-md bg-muted/50 p-0.5">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={`h-7 px-2 text-[11px] ${p.role !== 'admin' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`}
-                    onClick={() => p.role === 'admin' && updateProfileRole(p.id, p.role)}
-                  >
-                    일반
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={`h-7 px-2 text-[11px] ${p.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
-                    onClick={() => p.role !== 'admin' && updateProfileRole(p.id, p.role)}
-                  >
-                    전체관리
-                  </Button>
+                  <Button size="sm" variant="ghost" className={`h-7 px-2 text-[11px] ${p.role !== 'admin' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`} onClick={() => p.role === 'admin' && updateProfileRole(p.id, p.role)}>일반</Button>
+                  <Button size="sm" variant="ghost" className={`h-7 px-2 text-[11px] ${p.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`} onClick={() => p.role !== 'admin' && updateProfileRole(p.id, p.role)}>전체관리</Button>
                 </div>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => deleteMemberPermanently(p.id)}>
                   <Trash2 className="h-3 w-3" />
@@ -235,32 +273,14 @@ export function MembersTab() {
         </section>
       )}
 
-      {/* 거절됨 */}
-      {rejected.length > 0 && (
-        <section className="space-y-2">
-          <h3 className="font-semibold text-red-600">거절됨 ({rejected.length})</h3>
-          {rejected.map((m) => (
-            <MemberCard key={m.id} member={m} >
-              <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
-                재승인
-              </Button>
-            </MemberCard>
-          ))}
-        </section>
-      )}
-
       {/* 밴됨 */}
       {banned.length > 0 && (
         <section className="space-y-2">
           <h3 className="font-semibold text-gray-600">탈퇴/밴 ({banned.length})</h3>
           {banned.map((m) => (
             <MemberCard key={m.id} member={m}>
-              <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
-                재승인
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => deleteMemberPermanently(m.user_id)}>
-                <Trash2 className="mr-1 h-3 w-3" />삭제
-              </Button>
+              <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>재승인</Button>
+              <Button size="sm" variant="destructive" onClick={() => deleteMemberPermanently(m.user_id)}>삭제</Button>
             </MemberCard>
           ))}
         </section>
@@ -286,17 +306,13 @@ function MemberCard({ member, children, onRename }: { member: MemberWithDetails;
           <div>
             <div className="flex items-center gap-1">
               <p className="text-sm font-medium">{member.profiles.display_name}</p>
-              {onRename && (
-                <button onClick={onRename} className="text-muted-foreground hover:text-primary p-0.5">
-                  <Edit2 className="h-3 w-3" />
-                </button>
-              )}
+              {onRename && <button onClick={onRename} className="text-muted-foreground hover:text-primary p-0.5"><Edit2 className="h-3 w-3" /></button>}
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{member.stores.name}</span>
               {badge && <Badge variant="secondary" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>}
               {member.profiles.role === 'admin' && <Badge className="text-[10px] bg-slate-800 text-white">전체관리자</Badge>}
-              {member.status === 'banned' && <Badge variant="destructive" className="text-[10px]">밴</Badge>}
+              {member.resignation_date && <span className="text-[10px] text-red-600 font-medium">퇴사일: {member.resignation_date}</span>}
             </div>
           </div>
         </div>
