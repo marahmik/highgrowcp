@@ -1,12 +1,12 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, History, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { MobileScheduleGrid } from '@/components/schedule/MobileScheduleGrid'
-import type { Schedule, Profile } from '@/types/database'
+import type { Schedule } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
 
 export function HistoryPage() {
@@ -14,8 +14,6 @@ export function HistoryPage() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
-
-  const monthKey = format(currentMonth, 'yyyy-MM')
   
   const days = useMemo(() => eachDayOfInterval({
     start: startOfMonth(currentMonth),
