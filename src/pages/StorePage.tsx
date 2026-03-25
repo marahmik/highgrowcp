@@ -70,6 +70,41 @@ export function StorePage() {
   const isLocked = store?.locked ?? false
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
+  // 미저장된 변경사항 상태: Key="userId_date"
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { work_type: WorkType | null; leave_type: LeaveType | null }>>({})
+
+  // DB 데이터와 변경사항 병합 (UI 즉시 반영용)
+  const displaySchedules = useMemo(() => {
+    const merged = [...schedules]
+    Object.entries(pendingChanges).forEach(([key, change]) => {
+      if (key.includes('_ghost_')) return // Ghost는 별도 처리
+      const [userId, date] = key.split('_')
+      const idx = merged.findIndex(s => s.user_id === userId && s.date === date)
+      if (idx !== -1) {
+        merged[idx] = { ...merged[idx], work_type: change.work_type, leave_type: change.leave_type }
+      } else {
+        merged.push({ user_id: userId, date, work_type: change.work_type, leave_type: change.leave_type, status: 'approved' } as Schedule)
+      }
+    })
+    return merged
+  }, [schedules, pendingChanges])
+
+  const displayGhostSchedules = useMemo(() => {
+    const merged = [...ghostSchedules]
+    Object.entries(pendingChanges).forEach(([key, change]) => {
+      if (!key.includes('_ghost_')) return
+      const [slotStr, date] = key.replace('ghost-', '').split('_ghost_')
+      const slot = parseInt(slotStr)
+      const idx = merged.findIndex(g => g.slot === slot && g.date === date)
+      if (idx !== -1) {
+        merged[idx] = { ...merged[idx], work_type: change.work_type, leave_type: change.leave_type }
+      } else {
+        merged.push({ store_id: storeId!, slot, date, work_type: change.work_type, leave_type: change.leave_type } as GhostSchedule)
+      }
+    })
+    return merged
+  }, [ghostSchedules, pendingChanges, storeId])
+
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
 
   useEffect(() => {
@@ -174,7 +209,7 @@ export function StorePage() {
     if (schedulesRes.data) setSchedules(schedulesRes.data)
     if (ghostRes.data) setGhostSchedules(ghostRes.data as GhostSchedule[])
     setLoading(false)
-  }, [storeId, monthKey, user?.id, profile?.role]) // profile.role 추가로 권한 변경 시 재로드
+  }, [storeId, monthKey, user?.id, profile?.role, selectedMemberId])
 
   useEffect(() => {
     loadData()
@@ -208,16 +243,13 @@ export function StorePage() {
     setStore({ ...store, locked: newLocked })
   }
 
-  async function handleSave(userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
+  function handleSave(userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     if (!storeId) return
     if (isLocked && !isManager) return
 
     // 일반 직원 권한 체크: '요청' 티커만 허용
     if (!isManager) {
-      // 본인 것이 아니면 수정 불가 (ScheduleGrid에서도 막혀있지만 이중 체크)
       if (userId !== user?.id) return
-      
-      // 근무(workType) 설정 불가, 휴무(leaveType)는 'request'만 가능
       if (workType !== null || (leaveType !== null && leaveType !== 'request')) {
         toast.error('일반 직급은 "요청" 티커만 설정할 수 있습니다.')
         return
@@ -225,56 +257,93 @@ export function StorePage() {
     }
 
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
-    if (ghostMatch) {
-      const slot = parseInt(ghostMatch[1])
-      if (!workType && !leaveType) {
-        const { error } = await supabase.from('ghost_schedules').delete()
-          .eq('store_id', storeId).eq('slot', slot).eq('date', date)
-        if (error) {
-          console.error('Ghost delete error:', error)
-          toast.error('삭제 실패: ' + error.message)
-        }
-      } else {
-        const { error } = await supabase.from('ghost_schedules').upsert(
-          { store_id: storeId, slot, date, work_type: workType, leave_type: leaveType },
-          { onConflict: 'store_id,slot,date' }
-        )
-        if (error) {
-          console.error('Ghost upsert error:', error)
-          toast.error('저장 실패: ' + error.message)
-        }
-      }
-      loadData()
-      return
-    }
+    const key = ghostMatch ? `ghost-${ghostMatch[1]}_ghost_${date}` : `${userId}_${date}`
+    
+    setPendingChanges(prev => ({
+      ...prev,
+      [key]: { work_type: workType, leave_type: leaveType }
+    }))
+  }
 
-    if (!workType && !leaveType) {
-      const { error } = await supabase.from('schedules').delete()
-        .eq('store_id', storeId).eq('user_id', userId).eq('date', date)
-      if (error) {
-        console.error('Schedule delete error:', error)
-        toast.error('삭제 실패: ' + error.message)
-      }
-    } else {
-      const { error } = await supabase.from('schedules').upsert(
-        { store_id: storeId, user_id: userId, date, work_type: workType, leave_type: leaveType, status: 'approved' },
-        { onConflict: 'store_id,user_id,date' }
-      )
-      if (error) {
-        console.error('Schedule upsert error:', error)
-        if (error.code === '42501') {
-          toast.error('수정 권한이 없습니다 (데이터베이스 권한)')
+  async function commitChanges() {
+    if (!storeId || Object.keys(pendingChanges).length === 0) return
+    setLoading(true)
+
+    try {
+      const scheduleUpserts: any[] = []
+      const scheduleDeletes: { userId: string; date: string }[] = []
+      const ghostUpserts: any[] = []
+      const ghostDeletes: { slot: number; date: string }[] = []
+
+      Object.entries(pendingChanges).forEach(([key, change]) => {
+        if (key.includes('_ghost_')) {
+          const [slotStr, date] = key.replace('ghost-', '').split('_ghost_')
+          const slot = parseInt(slotStr)
+          if (!change.work_type && !change.leave_type) {
+            ghostDeletes.push({ slot, date })
+          } else {
+            ghostUpserts.push({ store_id: storeId, slot, date, ...change })
+          }
         } else {
-          toast.error('저장 실패: ' + error.message)
+          const [userId, date] = key.split('_')
+          if (!change.work_type && !change.leave_type) {
+            scheduleDeletes.push({ userId, date })
+          } else {
+            scheduleUpserts.push({ store_id: storeId, user_id: userId, date, ...change, status: 'approved' })
+          }
         }
+      })
+
+      const promises: Promise<any>[] = []
+
+      // 1. Regular schedules
+      if (scheduleUpserts.length > 0) {
+        promises.push(supabase.from('schedules').upsert(scheduleUpserts, { onConflict: 'store_id,user_id,date' }))
       }
+      scheduleDeletes.forEach(d => {
+        promises.push(supabase.from('schedules').delete().eq('store_id', storeId).eq('user_id', d.userId).eq('date', d.date))
+      })
+
+      // 2. Ghost schedules
+      if (ghostUpserts.length > 0) {
+        promises.push(supabase.from('ghost_schedules').upsert(ghostUpserts, { onConflict: 'store_id,slot,date' }))
+      }
+      ghostDeletes.forEach(d => {
+        promises.push(supabase.from('ghost_schedules').delete().eq('store_id', storeId).eq('slot', d.slot).eq('date', d.date))
+      })
+
+      const results = await Promise.all(promises)
+      const errors = results.filter(r => r.error)
+      
+      if (errors.length > 0) {
+        console.error('Commit errors:', errors)
+        toast.error(`${errors.length}건의 저장 실패가 발생했습니다.`)
+      } else {
+        toast.success('변경사항이 저장되었습니다.')
+        setPendingChanges({})
+        await loadData()
+      }
+    } catch (err) {
+      console.error('Commit exception:', err)
+      toast.error('저장 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
     }
-    loadData()
+  }
+
+  function cancelChanges() {
+    setPendingChanges({})
+    toast.info('변경사항이 취소되었습니다.')
   }
 
   async function handleAnnualLeaveUpdate(memberId: string, value: number) {
-    await supabase.from('store_members').update({ annual_leave: value }).eq('id', memberId)
-    loadData()
+    if (!isManager) return
+    const { error } = await supabase.from('store_members').update({ annual_leave: value }).eq('id', memberId)
+    if (error) {
+      toast.error('연차 수정 실패: ' + error.message)
+    } else {
+      loadData()
+    }
   }
 
   async function handleMemoUpdate(memoText: string) {
@@ -285,12 +354,12 @@ export function StorePage() {
     if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
   }
 
-  if (loading) {
+  if (loading && !Object.keys(pendingChanges).length) {
     return <div className="py-12 text-center text-muted-foreground">로딩 중...</div>
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 pb-24">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -322,7 +391,6 @@ export function StorePage() {
           )}
         </div>
 
-        {/* Task 2: 수퍼바이저 매장 캘린더 상단 도움텍스트 (모바일에서는 간소화) */}
         {isSupervisorStore && (
           <div className="flex border-l-4 border-slate-800 bg-slate-50 p-3 rounded-r-lg items-center gap-3">
             <Info className="h-4 w-4 text-slate-600 shrink-0" />
@@ -353,6 +421,7 @@ export function StorePage() {
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-annual" />연차</span>
           <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-leave-request" />요청</span>
         </div>
+
         {members.length === 0 ? (
           <p className="py-8 text-center text-muted-foreground">승인된 멤버가 없습니다.</p>
         ) : (
@@ -379,7 +448,7 @@ export function StorePage() {
                     currentMonth={currentMonth}
                     days={days}
                     members={members}
-                    schedules={schedules}
+                    schedules={displaySchedules}
                     currentUserId={selectedMemberId || user?.id || ''}
                     isManager={isManager}
                     isLocked={isLocked && !isManager}
@@ -393,8 +462,8 @@ export function StorePage() {
                   month={month}
                   days={days}
                   members={members}
-                  schedules={schedules}
-                  ghostSchedules={ghostSchedules}
+                  schedules={displaySchedules}
+                  ghostSchedules={displayGhostSchedules}
                   currentUserId={user?.id ?? ''}
                   isManager={isManager}
                   isLocked={isLocked && !isManager}
@@ -427,10 +496,27 @@ export function StorePage() {
       </div>
 
       {!isMobile && <hr className="border-t-2" />}
-
-      {/* 매장 페이지 하단 통합 캘린더 필터링 (수퍼바이저 매장만, 모바일 제외) */}
       {!isMobile && <AllSchedulesTab storeNameFilter="수퍼바이저" />}
+
+      {/* 저장 버튼 (변경사항이 있을 때만 표시) */}
+      {Object.keys(pendingChanges).length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 p-4 bg-white/90 backdrop-blur-md border shadow-2xl rounded-2xl animate-in fade-in slide-in-from-bottom-4 min-w-[300px] justify-between">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Unsaved Changes</span>
+            <span className="text-sm font-bold">
+              총 <span className="text-primary">{Object.keys(pendingChanges).length}건</span>의 수정사항
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={cancelChanges} className="h-9">
+              취소
+            </Button>
+            <Button onClick={commitChanges} size="sm" className="h-9 px-6 font-semibold shadow-lg shadow-primary/20">
+              저장하기
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
