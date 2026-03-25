@@ -22,6 +22,11 @@ interface AllSchedulesTabProps {
   storeNameFilter?: string
 }
 
+interface PendingWork {
+  work_type: WorkType | null
+  leave_type: LeaveType | null
+}
+
 export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   const { user } = useAuthStore()
   const [monthKey, setMonthKey] = useState(() => format(new Date(), 'yyyy-MM'))
@@ -31,7 +36,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   const [loading, setLoading] = useState(true)
 
   // 미저장된 변경사항 상태: Key="storeId_userId_date"
-  const [pendingChanges, setPendingChanges] = useState<Record<string, { work_type: WorkType | null; leave_type: LeaveType | null }>>({})
+  const [pendingChanges, setPendingChanges] = useState<Record<string, PendingWork>>({})
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
@@ -100,7 +105,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   function navigateMonth(direction: 'prev' | 'next') {
     const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1)
     setMonthKey(format(newMonth, 'yyyy-MM'))
-    setPendingChanges({}) // 월 변경 시 미저장 초기화 (또는 저장 권고)
+    setPendingChanges({}) // 월 변경 시 미저장 초기화
   }
 
   function handleSave(storeId: string, userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
@@ -125,26 +130,27 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
       const ghostDeletes: { storeId: string; slot: number; date: string }[] = []
 
       Object.entries(pendingChanges).forEach(([key, change]) => {
+        const c = change as PendingWork
         if (key.includes('_ghost_')) {
           const [storeId, rest] = key.split('_ghost-')
           const [slotStr, date] = rest.split('_ghost_')
           const slot = parseInt(slotStr)
-          if (!change.work_type && !change.leave_type) {
+          if (!c.work_type && !c.leave_type) {
             ghostDeletes.push({ storeId, slot, date })
           } else {
-            ghostUpserts.push({ store_id: storeId, slot, date, ...change })
+            ghostUpserts.push({ store_id: storeId, slot, date, ...c })
           }
         } else {
           const [storeId, userId, date] = key.split('_')
-          if (!change.work_type && !change.leave_type) {
+          if (!c.work_type && !c.leave_type) {
             scheduleDeletes.push({ storeId, userId, date })
           } else {
-            scheduleUpserts.push({ store_id: storeId, user_id: userId, date, ...change, status: 'approved' })
+            scheduleUpserts.push({ store_id: storeId, user_id: userId, date, ...c, status: 'approved' })
           }
         }
       })
 
-      const promises: Promise<any>[] = []
+      const promises: any[] = []
 
       if (scheduleUpserts.length > 0) {
         promises.push(supabase.from('schedules').upsert(scheduleUpserts))
@@ -242,6 +248,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
             const mergedGhosts = [...group.ghostSchedules]
             
             Object.entries(pendingChanges).forEach(([key, change]) => {
+              const c = change as PendingWork
               if (key.startsWith(group.store.id)) {
                 if (key.includes('_ghost_')) {
                    const [_, rest] = key.split('_ghost-')
@@ -249,17 +256,17 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
                    const slot = parseInt(slotStr)
                    const idx = mergedGhosts.findIndex(g => g.slot === slot && g.date === date)
                    if (idx !== -1) {
-                     mergedGhosts[idx] = { ...mergedGhosts[idx], ...change }
+                     mergedGhosts[idx] = { ...mergedGhosts[idx], ...c }
                    } else {
-                     mergedGhosts.push({ store_id: group.store.id, slot, date, ...change } as GhostSchedule)
+                     mergedGhosts.push({ store_id: group.store.id, slot, date, ...c } as GhostSchedule)
                    }
                 } else {
                    const [_, userId, date] = key.split('_')
                    const idx = mergedSchedules.findIndex(s => s.user_id === userId && s.date === date)
                    if (idx !== -1) {
-                     mergedSchedules[idx] = { ...mergedSchedules[idx], ...change }
+                     mergedSchedules[idx] = { ...mergedSchedules[idx], ...c }
                    } else {
-                     mergedSchedules.push({ store_id: group.store.id, user_id: userId, date, ...change, status: 'approved' } as Schedule)
+                     mergedSchedules.push({ store_id: group.store.id, user_id: userId, date, ...c, status: 'approved' } as Schedule)
                    }
                 }
               }
@@ -334,7 +341,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
       {/* 통합 관리자 저장 버튼 */}
       {Object.keys(pendingChanges).length > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 p-4 bg-slate-900 text-white shadow-2xl rounded-2xl animate-in zoom-in-95 duration-200 min-w-[360px] justify-between border border-slate-700">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 p-4 bg-slate-900 text-white shadow-2xl rounded-2xl min-w-[360px] justify-between border border-slate-700">
           <div className="flex flex-col">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Admin Batch Mode</span>
             <div className="flex items-center gap-2">
