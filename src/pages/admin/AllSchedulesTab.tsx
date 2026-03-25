@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, MessageSquare, Info } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Info, Save, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,9 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
   const [storeGroups, setStoreGroups] = useState<StoreGroup[]>([])
   const [loading, setLoading] = useState(true)
+
+  // 미저장된 변경사항 상태: Key="storeId_userId_date"
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { work_type: WorkType | null; leave_type: LeaveType | null }>>({})
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
@@ -97,33 +100,88 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   function navigateMonth(direction: 'prev' | 'next') {
     const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1)
     setMonthKey(format(newMonth, 'yyyy-MM'))
+    setPendingChanges({}) // 월 변경 시 미저장 초기화 (또는 저장 권고)
   }
 
-  async function handleSave(storeId: string, userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
+  function handleSave(storeId: string, userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
-    if (ghostMatch) {
-      const slot = parseInt(ghostMatch[1])
-      if (!workType && !leaveType) {
-        await supabase.from('ghost_schedules').delete().eq('store_id', storeId).eq('slot', slot).eq('date', date)
-      } else {
-        await supabase.from('ghost_schedules').upsert(
-          { store_id: storeId, slot, date, work_type: workType, leave_type: leaveType },
-          { onConflict: 'store_id,slot,date' }
-        )
-      }
-      loadData()
-      return
-    }
+    const key = ghostMatch ? `${storeId}_ghost-${ghostMatch[1]}_ghost_${date}` : `${storeId}_${userId}_${date}`
+    
+    setPendingChanges(prev => ({
+      ...prev,
+      [key]: { work_type: workType, leave_type: leaveType }
+    }))
+  }
 
-    if (!workType && !leaveType) {
-      await supabase.from('schedules').delete().eq('store_id', storeId).eq('user_id', userId).eq('date', date)
-    } else {
-      await supabase.from('schedules').upsert(
-        { store_id: storeId, user_id: userId, date, work_type: workType, leave_type: leaveType, status: 'approved' },
-        { onConflict: 'store_id,user_id,date' }
-      )
+  async function commitChanges() {
+    const keys = Object.keys(pendingChanges)
+    if (keys.length === 0) return
+    setLoading(true)
+
+    try {
+      const scheduleUpserts: any[] = []
+      const scheduleDeletes: { storeId: string; userId: string; date: string }[] = []
+      const ghostUpserts: any[] = []
+      const ghostDeletes: { storeId: string; slot: number; date: string }[] = []
+
+      Object.entries(pendingChanges).forEach(([key, change]) => {
+        if (key.includes('_ghost_')) {
+          const [storeId, rest] = key.split('_ghost-')
+          const [slotStr, date] = rest.split('_ghost_')
+          const slot = parseInt(slotStr)
+          if (!change.work_type && !change.leave_type) {
+            ghostDeletes.push({ storeId, slot, date })
+          } else {
+            ghostUpserts.push({ store_id: storeId, slot, date, ...change })
+          }
+        } else {
+          const [storeId, userId, date] = key.split('_')
+          if (!change.work_type && !change.leave_type) {
+            scheduleDeletes.push({ storeId, userId, date })
+          } else {
+            scheduleUpserts.push({ store_id: storeId, user_id: userId, date, ...change, status: 'approved' })
+          }
+        }
+      })
+
+      const promises: Promise<any>[] = []
+
+      if (scheduleUpserts.length > 0) {
+        promises.push(supabase.from('schedules').upsert(scheduleUpserts))
+      }
+      scheduleDeletes.forEach(d => {
+        promises.push(supabase.from('schedules').delete().eq('store_id', d.storeId).eq('user_id', d.userId).eq('date', d.date))
+      })
+
+      if (ghostUpserts.length > 0) {
+        promises.push(supabase.from('ghost_schedules').upsert(ghostUpserts))
+      }
+      ghostDeletes.forEach(d => {
+        promises.push(supabase.from('ghost_schedules').delete().eq('store_id', d.storeId).eq('slot', d.slot).eq('date', d.date))
+      })
+
+      const results = await Promise.all(promises)
+      const errors = results.filter(r => r.error)
+
+      if (errors.length > 0) {
+        console.error('Admin commit errors:', errors)
+        toast.error(`${errors.length}건의 저장 실패가 발생했습니다.`)
+      } else {
+        toast.success('통합 캘린더의 모든 변경사항이 저장되었습니다.')
+        setPendingChanges({})
+        await loadData()
+      }
+    } catch (err) {
+      console.error('Admin commit exception:', err)
+      toast.error('저장 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
     }
-    loadData()
+  }
+
+  function cancelChanges() {
+    setPendingChanges({})
+    toast.info('변경사항이 취소되었습니다.')
   }
 
   async function handleAnnualLeaveUpdate(memberId: string, value: number) {
@@ -154,12 +212,12 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     toast.success('메모가 저장되었습니다.')
   }
 
-  if (loading) {
+  if (loading && Object.keys(pendingChanges).length === 0) {
     return <div className="py-12 text-center text-muted-foreground">캘린더 로딩 중...</div>
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div className="flex items-center justify-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
           <ChevronLeft className="h-4 w-4" />
@@ -179,6 +237,34 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
           storeGroups.map((group) => {
             const isSupervisorStore = group.store.name.includes('수퍼바이저')
             
+            // 병합된 데이터 계산
+            const mergedSchedules = [...group.schedules]
+            const mergedGhosts = [...group.ghostSchedules]
+            
+            Object.entries(pendingChanges).forEach(([key, change]) => {
+              if (key.startsWith(group.store.id)) {
+                if (key.includes('_ghost_')) {
+                   const [_, rest] = key.split('_ghost-')
+                   const [slotStr, date] = rest.split('_ghost_')
+                   const slot = parseInt(slotStr)
+                   const idx = mergedGhosts.findIndex(g => g.slot === slot && g.date === date)
+                   if (idx !== -1) {
+                     mergedGhosts[idx] = { ...mergedGhosts[idx], ...change }
+                   } else {
+                     mergedGhosts.push({ store_id: group.store.id, slot, date, ...change } as GhostSchedule)
+                   }
+                } else {
+                   const [_, userId, date] = key.split('_')
+                   const idx = mergedSchedules.findIndex(s => s.user_id === userId && s.date === date)
+                   if (idx !== -1) {
+                     mergedSchedules[idx] = { ...mergedSchedules[idx], ...change }
+                   } else {
+                     mergedSchedules.push({ store_id: group.store.id, user_id: userId, date, ...change, status: 'approved' } as Schedule)
+                   }
+                }
+              }
+            })
+
             const memoObj = (() => {
                if (!group.store.memo) return {}
                try {
@@ -215,8 +301,8 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
                     month={month}
                     days={days}
                     members={group.members}
-                    schedules={group.schedules}
-                    ghostSchedules={group.ghostSchedules}
+                    schedules={mergedSchedules}
+                    ghostSchedules={mergedGhosts}
                     currentUserId={user?.id ?? ''}
                     isManager={true}
                     isLocked={false}
@@ -245,6 +331,29 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
           })
         )}
       </div>
+
+      {/* 통합 관리자 저장 버튼 */}
+      {Object.keys(pendingChanges).length > 0 && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 p-4 bg-slate-900 text-white shadow-2xl rounded-2xl animate-in zoom-in-95 duration-200 min-w-[360px] justify-between border border-slate-700">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Admin Batch Mode</span>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-sm font-bold">
+                <span className="text-green-400">{Object.keys(pendingChanges).length}건</span>의 미저장 스케줄
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={cancelChanges} className="text-slate-300 hover:text-white hover:bg-slate-800 h-9">
+              <X className="h-4 w-4 mr-1" /> 취소
+            </Button>
+            <Button onClick={commitChanges} size="sm" className="bg-white text-slate-900 hover:bg-slate-100 h-9 px-6 font-bold shadow-lg">
+              <Save className="h-4 w-4 mr-1" /> 전체 저장
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
