@@ -56,7 +56,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1">
-        <div className="mx-auto max-w-5xl px-4 py-6">
+        <div className="px-4 py-6">
           {children}
         </div>
       </main>

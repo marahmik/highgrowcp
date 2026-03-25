@@ -68,7 +68,7 @@ export function MyPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <h1 className="text-2xl font-bold">마이페이지</h1>
 
       {/* 내 매장 목록 */}

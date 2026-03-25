@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { format, getDay } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { ScheduleCell } from './ScheduleCell'
@@ -114,25 +114,25 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full border-collapse text-sm">
+      <div className="rounded-lg border w-full">
+        <table className="w-full table-fixed border-collapse text-sm">
           <thead>
             <tr className="bg-muted">
-              <th className="sticky left-0 z-10 min-w-[100px] border-r bg-muted px-2 py-1.5 text-left text-xs font-semibold">
+              <th className="w-[100px] md:w-[140px] xl:w-[180px] border-r bg-muted px-1 md:px-2 py-1 text-left text-[10px] sm:text-xs font-semibold overflow-hidden">
                 이름
               </th>
-              <th className="min-w-[40px] border-r bg-muted px-1 py-1.5 text-center text-xs font-semibold">
-                연차
+              <th className="w-[28px] md:w-[36px] border-r bg-muted px-0.5 py-1 text-center text-[9px] sm:text-[10px] font-semibold overflow-hidden">
+                연휴
               </th>
               {days.map((day) => {
                 const dow = getDay(day)
                 return (
                   <th
                     key={day.toISOString()}
-                    className={`min-w-[44px] px-1 py-1.5 text-center text-xs font-medium ${DAY_COLORS[dow] ?? ''} ${DAY_TEXT_COLORS[dow] ?? ''}`}
+                    className={`min-w-0 p-0 py-1 text-center font-medium overflow-hidden ${DAY_COLORS[dow] ?? ''} ${DAY_TEXT_COLORS[dow] ?? ''}`}
                   >
-                    <div>{format(day, 'd')}</div>
-                    <div className="text-[10px]">{format(day, 'EEE', { locale: ko })}</div>
+                    <div className="text-[9px] sm:text-[11px] leading-none">{format(day, 'd')}</div>
+                    <div className="text-[8px] sm:text-[9px] leading-none">{format(day, 'EEE', { locale: ko })}</div>
                   </th>
                 )
               })}
@@ -145,8 +145,8 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
 
               return (
                 <tr key={member.id} className="border-t hover:bg-muted/30">
-                  <td className="sticky left-0 z-10 border-r bg-white px-2 py-1 text-xs font-medium whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
+                  <td className="border-r bg-white px-1 md:px-2 py-1 text-[10px] sm:text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
                       <span className={`inline-flex items-center rounded px-1 py-0.5 text-[10px] font-semibold ${roleColor}`}>
                         {member.isGhost ? '단기' : roleLabel}
                       </span>
@@ -165,9 +165,9 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
                         step="0.5"
                         min="0"
                         value={leaveInput}
-                        onChange={(e) => setLeaveInput(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLeaveInput(e.target.value)}
                         onBlur={() => saveLeaveEdit(member)}
-                        onKeyDown={(e) => e.key === 'Enter' && saveLeaveEdit(member)}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && saveLeaveEdit(member)}
                         className="h-6 w-10 rounded border text-center text-xs"
                         autoFocus
                       />
@@ -189,7 +189,7 @@ export function ScheduleGrid({ days, members, schedules, ghostSchedules, current
                     return (
                       <td
                         key={day.toISOString()}
-                        className={`px-0.5 py-0.5 ${DAY_COLORS[dow] ?? ''}`}
+                        className={`p-0 ${DAY_COLORS[dow] ?? ''} border-x border-border/30`}
                       >
                         <ScheduleCell
                           workType={workType}
