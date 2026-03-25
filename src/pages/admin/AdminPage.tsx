@@ -9,7 +9,7 @@ type Tab = 'members' | 'stores' | 'schedules'
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'schedules', label: '통합 캘린더', icon: <Calendar className="h-4 w-4" /> },
-  { key: 'members', label: '회원관리', icon: <Users className="h-4 w-4" /> },
+  { key: 'members', label: '직원관리', icon: <Users className="h-4 w-4" /> },
   { key: 'stores', label: '매장관리', icon: <Store className="h-4 w-4" /> },
 ]
 
