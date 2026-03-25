@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react'
 import { format, getDay, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns'
-import { ko } from 'date-fns/locale'
 import { EditDropdown } from './EditDropdown'
 import type { Schedule, WorkType, LeaveType } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
