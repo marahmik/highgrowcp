@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X, Ban, Trash2, UserMinus, Edit2 } from 'lucide-react'
+import { Check, X, Ban, Trash2, UserMinus, Edit2, Info } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,6 +22,7 @@ const ROLE_OPTIONS = [
 
 export function MembersTab() {
   const [members, setMembers] = useState<MemberWithDetails[]>([])
+  const [unaffiliated, setUnaffiliated] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,11 +31,19 @@ export function MembersTab() {
 
   async function loadMembers() {
     setLoading(true)
-    const { data } = await supabase
-      .from('store_members')
-      .select('*, profiles(*), stores(*)')
-      .order('created_at', { ascending: false })
-    if (data) setMembers(data as MemberWithDetails[])
+    const [membersRes, profilesRes] = await Promise.all([
+      supabase.from('store_members').select('*, profiles(*), stores(*)').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('*').order('display_name')
+    ])
+
+    if (membersRes.data) setMembers(membersRes.data as MemberWithDetails[])
+    
+    if (profilesRes.data && membersRes.data) {
+      const memberUserIds = new Set(membersRes.data.map((m: any) => m.user_id))
+      const unaffiliatedProfiles = profilesRes.data.filter(p => !memberUserIds.has(p.id))
+      setUnaffiliated(unaffiliatedProfiles)
+    }
+    
     setLoading(false)
   }
 
@@ -79,17 +88,22 @@ export function MembersTab() {
     loadMembers()
   }
 
-  async function deleteMemberPermanently(memberId: string, userId: string) {
+  async function deleteMemberPermanently(userId: string) {
     if (!confirm('이 회원을 완전히 삭제하시겠습니까? (DB 및 계정 전체 삭제) 이 작업은 되돌릴 수 없습니다.')) return
 
-    const { error: smError } = await supabase.from('store_members').delete().eq('id', memberId)
-    if (smError) { toast.error('멤버 삭제 실패', { description: smError.message }); return }
+    // 1. 소속 정보 삭제
+    await supabase.from('store_members').delete().eq('user_id', userId)
 
+    // 2. 프로필 삭제
     await supabase.from('profiles').delete().eq('id', userId)
 
+    // 3. Auth 삭제 (Edge function 또는 RPC 필요)
     const { error: authError } = await supabase.rpc('delete_user', { target_user_id: userId })
-    if (authError) { toast.error('계정 삭제 실패 (수동 삭제 필요)', { description: authError.message }) }
-    else { toast.success('회원이 완전히 삭제되었습니다.') }
+    if (authError) {
+      toast.error('계정 삭제 실패 (수동 삭제 필요)', { description: authError.message })
+    } else {
+      toast.success('회원이 완전히 삭제되었습니다.')
+    }
 
     loadMembers()
   }
@@ -102,7 +116,7 @@ export function MembersTab() {
   const banned = members.filter((m) => m.status === 'banned')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* 승인 대기 */}
       {pending.length > 0 && (
         <section className="space-y-2">
@@ -128,7 +142,6 @@ export function MembersTab() {
         ) : (
           approved.map((m) => (
             <MemberCard key={m.id} member={m} onRename={() => renameMember(m.profiles.id, m.profiles.display_name)}>
-              {/* 매장 직급 */}
               <div className="flex items-center rounded-md bg-muted p-0.5">
                 {ROLE_OPTIONS.map((opt) => (
                   <Button
@@ -142,7 +155,6 @@ export function MembersTab() {
                   </Button>
                 ))}
               </div>
-              {/* 전체관리자 */}
               <div className="flex items-center rounded-md bg-muted p-0.5">
                 <Button
                   size="sm"
@@ -161,11 +173,9 @@ export function MembersTab() {
                   전체관리
                 </Button>
               </div>
-              {/* 발령/제외 버튼 */}
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => leaveStore(m.id)} title="매장에서만 제외 (타지점 발령 시 사용)">
                 <UserMinus className="h-4 w-4" />
               </Button>
-              {/* 밴 버튼 */}
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => updateMemberStatus(m.id, 'banned')}>
                 <Ban className="h-3 w-3" />
               </Button>
@@ -173,6 +183,57 @@ export function MembersTab() {
           ))
         )}
       </section>
+
+      {/* 미소속 인원 */}
+      {unaffiliated.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="font-semibold text-slate-600 flex items-center gap-2">
+            <Info className="h-4 w-4" /> 미소속 인원 ({unaffiliated.length})
+          </h3>
+          <p className="text-xs text-muted-foreground ml-6 mb-2">어떠한 매장에도 가입 신청을 하지 않았거나 소속되지 않은 인원입니다.</p>
+          {unaffiliated.map((p) => (
+            <div key={p.id} className="flex items-center justify-between p-3 border rounded-xl bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-bold">{p.display_name}</span>
+                    <button onClick={() => renameMember(p.id, p.display_name)} className="text-muted-foreground hover:text-primary">
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="flex gap-2 mt-1">
+                    <Badge variant="outline" className="text-[10px] bg-white">매장 정보 없음</Badge>
+                    {p.role === 'admin' && <Badge className="text-[10px] bg-slate-800 text-white">전체관리자</Badge>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center rounded-md bg-muted/50 p-0.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={`h-7 px-2 text-[11px] ${p.role !== 'admin' ? 'bg-white shadow-sm font-medium text-slate-700' : 'text-muted-foreground'}`}
+                    onClick={() => p.role === 'admin' && updateProfileRole(p.id, p.role)}
+                  >
+                    일반
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={`h-7 px-2 text-[11px] ${p.role === 'admin' ? 'bg-white shadow-sm font-medium text-primary' : 'text-muted-foreground'}`}
+                    onClick={() => p.role !== 'admin' && updateProfileRole(p.id, p.role)}
+                  >
+                    전체관리
+                  </Button>
+                </div>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => deleteMemberPermanently(p.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* 거절됨 */}
       {rejected.length > 0 && (
@@ -197,7 +258,7 @@ export function MembersTab() {
               <Button size="sm" variant="outline" onClick={() => updateMemberStatus(m.id, 'approved')}>
                 재승인
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => deleteMemberPermanently(m.id, m.user_id)}>
+              <Button size="sm" variant="destructive" onClick={() => deleteMemberPermanently(m.user_id)}>
                 <Trash2 className="mr-1 h-3 w-3" />삭제
               </Button>
             </MemberCard>
