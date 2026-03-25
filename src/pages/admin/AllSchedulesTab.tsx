@@ -6,18 +6,14 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
-import { ROLE_ORDER, ROLE_LABELS } from '@/pages/StorePage'
+import { ROLE_ORDER } from '@/pages/StorePage'
 import type { Schedule, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
 import { toast } from 'sonner'
 
-interface UnifiedMember extends MemberWithRole {
-  primaryStoreId: string
-}
-
 interface StoreGroup {
   store: Store
-  members: UnifiedMember[]
+  members: MemberWithRole[]
   schedules: Schedule[]
   ghostSchedules: GhostSchedule[]
 }
@@ -31,8 +27,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   const [monthKey, setMonthKey] = useState(() => format(new Date(), 'yyyy-MM'))
   const currentMonth = useMemo(() => new Date(monthKey + '-01'), [monthKey])
 
-  const [unifiedGroup, setUnifiedGroup] = useState<StoreGroup | null>(null)
-  const [allValidStores, setAllValidStores] = useState<Store[]>([])
+  const [storeGroups, setStoreGroups] = useState<StoreGroup[]>([])
   const [loading, setLoading] = useState(true)
 
   const days = eachDayOfInterval({
@@ -60,76 +55,40 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     const allSchedules: Schedule[] = schedulesRes.data ?? []
     const allGhosts: GhostSchedule[] = (ghostRes.data ?? []) as GhostSchedule[]
 
-    const filteredStores = stores.filter(s => !storeNameFilter || s.name.includes(storeNameFilter))
-    const validStoreIds = new Set(filteredStores.map(s => s.id))
-    
-    setAllValidStores(filteredStores)
+    const groups: StoreGroup[] = stores
+      .filter(s => !storeNameFilter || s.name.includes(storeNameFilter))
+      .map((store) => {
+        const isSupervisorStore = store.name.includes('수퍼바이저')
+        
+        const storeMembers: MemberWithRole[] = allMembers
+          .filter((m: any) => m.store_id === store.id)
+          .map((m: any) => ({
+            ...m.profiles,
+            storeRole: m.role,
+            annualLeave: m.annual_leave ?? 0,
+            memberId: m.id,
+          }))
+          .filter((m: MemberWithRole) => m.storeRole !== 'resigned')
+          .sort((a: MemberWithRole, b: MemberWithRole) =>
+            (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99)
+          )
 
-    // 1. Group active human members
-    const memberMap = new Map<string, any>()
+        const ghostMembers: MemberWithRole[] = isSupervisorStore ? [] : [
+          { id: `ghost-${store.id}-1`, display_name: '단기알바 1', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1 },
+          { id: `ghost-${store.id}-2`, display_name: '단기알바 2', phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2 },
+        ]
 
-    allMembers.forEach(m => {
-      if (m.role === 'resigned') return
-      if (!validStoreIds.has(m.store_id)) return
-      
-      const storeName = stores.find(s => s.id === m.store_id)?.name ?? '알수없음'
-      const roleLabel = ROLE_LABELS[m.role] ?? m.role
-      const order = ROLE_ORDER[m.role] ?? 99
-
-      if (!memberMap.has(m.profiles.id)) {
-        memberMap.set(m.profiles.id, {
-          ...m.profiles,
-          storeRole: m.role,
-          annualLeave: m.annual_leave ?? 0,
-          memberId: m.id,
-          storeNames: new Set([storeName]),
-          roles: new Set([roleLabel]),
-          primaryStoreId: m.store_id,
-          sortOrder: order
-        })
-      } else {
-        const existing = memberMap.get(m.profiles.id)!
-        existing.storeNames.add(storeName)
-        existing.roles.add(roleLabel)
-        if (order < existing.sortOrder) {
-           existing.storeRole = m.role
-           existing.sortOrder = order
+        return {
+          store,
+          members: [...storeMembers, ...ghostMembers],
+          schedules: allSchedules.filter((s) => s.store_id === store.id),
+          ghostSchedules: allGhosts.filter((g) => g.store_id === store.id),
         }
-      }
-    })
+      })
 
-    const unifiedHumans: UnifiedMember[] = Array.from(memberMap.values()).map(m => {
-       const storesStr = Array.from(m.storeNames).join('/')
-       const rolesStr = Array.from(m.roles).join('/')
-       return {
-         ...m,
-         display_name: `${m.display_name} (${storesStr}/${rolesStr})`,
-       }
-    })
+    groups.sort((a, b) => b.members.filter(m => !m.isGhost).length - a.members.filter(m => !m.isGhost).length)
 
-    // Sort humans
-    unifiedHumans.sort((a, b) => (ROLE_ORDER[a.storeRole] ?? 99) - (ROLE_ORDER[b.storeRole] ?? 99))
-
-    // 2. Add ghosts
-    const unifiedGhosts: UnifiedMember[] = []
-    filteredStores.forEach(store => {
-      const isSupervisorStore = store.name.includes('수퍼바이저')
-      if (!isSupervisorStore) {
-        unifiedGhosts.push({ id: `ghost-${store.id}-1`, display_name: `단기알바 1 (${store.name})`, phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 1, primaryStoreId: store.id })
-        unifiedGhosts.push({ id: `ghost-${store.id}-2`, display_name: `단기알바 2 (${store.name})`, phone: null, role: 'user', created_at: '', updated_at: '', storeRole: 'parttimer', annualLeave: 0, memberId: '', isGhost: true, ghostSlot: 2, primaryStoreId: store.id })
-      }
-    })
-
-    const filteredSchedules = allSchedules.filter(s => validStoreIds.has(s.store_id))
-    const filteredGhosts = allGhosts.filter(s => validStoreIds.has(s.store_id))
-
-    setUnifiedGroup({
-       store: { id: 'unified', name: storeNameFilter ? `${storeNameFilter} 통합 점포` : '전체 점포 통합 캘린더', memo: '', locked: false } as Store,
-       members: [...unifiedHumans, ...unifiedGhosts],
-       schedules: filteredSchedules,
-       ghostSchedules: filteredGhosts,
-    })
-    
+    setStoreGroups(groups)
     setLoading(false)
   }, [monthKey, storeNameFilter])
 
@@ -140,7 +99,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     setMonthKey(format(newMonth, 'yyyy-MM'))
   }
 
-  async function handleSaveInternal(storeId: string, userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
+  async function handleSave(storeId: string, userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
     if (ghostMatch) {
       const slot = parseInt(ghostMatch[1])
@@ -175,14 +134,13 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   async function handleMemoUpdate(storeId: string, memo: string) {
     const { error } = await supabase.from('stores').update({ memo }).eq('id', storeId)
     if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
+    setStoreGroups(prev => prev.map(g => g.store.id === storeId ? { ...g, store: { ...g.store, memo } } : g))
     toast.success('메모가 저장되었습니다.')
   }
 
-  if (loading || !unifiedGroup) {
+  if (loading) {
     return <div className="py-12 text-center text-muted-foreground">캘린더 로딩 중...</div>
   }
-
-  const isSupervisorTheme = storeNameFilter === '수퍼바이저'
 
   return (
     <div className="space-y-6">
@@ -199,67 +157,65 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
       </div>
 
       <div className="space-y-12">
-        <section className="space-y-4">
-          <h3 className="text-lg font-bold flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-primary" />
-            {unifiedGroup.store.name}
-          </h3>
-          
-          {isSupervisorTheme && (
-            <div className="flex border-l-4 border-slate-800 bg-slate-50 p-3 rounded-r-lg items-center gap-3 mb-4">
-              <Info className="h-4 w-4 text-slate-600 shrink-0" />
-              <div className="text-xs text-slate-600">
-                <p className="font-bold">수퍼바이저 지점 안내</p>
-                <p className="opacity-80">수퍼바이저의 근무 유형은 파견 지점(송도, 인천, 중동, 남양주)을 의미합니다.</p>
-              </div>
-            </div>
-          )}
+        {storeGroups.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">표시할 데이터가 없습니다.</p>
+        ) : (
+          storeGroups.map((group) => {
+            const isSupervisorStore = group.store.name.includes('수퍼바이저')
+            
+            return (
+              <section key={group.store.id} className="space-y-4">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-primary" />
+                  {group.store.name}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({group.members.filter(m => !m.isGhost).length}명)
+                  </span>
+                </h3>
+                
+                {isSupervisorStore && (
+                  <div className="flex border-l-4 border-slate-800 bg-slate-50 p-3 rounded-r-lg items-center gap-3 mb-4">
+                    <Info className="h-4 w-4 text-slate-600 shrink-0" />
+                    <div className="text-xs text-slate-600">
+                      <p className="font-bold">수퍼바이저 지점 안내</p>
+                      <p className="opacity-80">수퍼바이저의 근무 유형은 파견 지점(송도, 인천, 중동, 남양주)을 의미합니다.</p>
+                    </div>
+                  </div>
+                )}
 
-          <div className="pb-4">
-            <ScheduleGrid
-              year={year}
-              month={month}
-              days={days}
-              members={unifiedGroup.members}
-              schedules={unifiedGroup.schedules}
-              ghostSchedules={unifiedGroup.ghostSchedules}
-              currentUserId={user?.id ?? ''}
-              isManager={true}
-              isLocked={false}
-              isSupervisorStore={isSupervisorTheme}
-              onSave={(userId, date, workType, leaveType) => {
-                const member = unifiedGroup.members.find(m => m.id === userId)
-                if (member) {
-                  handleSaveInternal(member.primaryStoreId, userId, date, workType, leaveType)
-                }
-              }}
-              onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
-            />
-          </div>
-        </section>
+                <div className="pb-2">
+                  <ScheduleGrid
+                    year={year}
+                    month={month}
+                    days={days}
+                    members={group.members}
+                    schedules={group.schedules}
+                    ghostSchedules={group.ghostSchedules}
+                    currentUserId={user?.id ?? ''}
+                    isManager={true}
+                    isLocked={false}
+                    isSupervisorStore={isSupervisorStore}
+                    onSave={(userId, date, workType, leaveType) => handleSave(group.store.id, userId, date, workType, leaveType)}
+                    onAnnualLeaveUpdate={handleAnnualLeaveUpdate}
+                  />
+                </div>
 
-        {/* 점포별 메모 표시 */}
-        {!isSupervisorTheme && allValidStores.length > 0 && (
-          <div className="space-y-4 pt-8 border-t">
-            <h3 className="font-bold flex items-center gap-2 text-sm">
-              <MessageSquare className="h-4 w-4" />
-              점포별 메모 (개별 저장)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {allValidStores.map(store => (
-                <div key={store.id} className="space-y-2 border p-3 rounded-lg bg-slate-50/50">
-                  <div className="text-sm font-semibold text-slate-700">{store.name}</div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1">
+                    <MessageSquare className="h-4 w-4" />
+                    매장 메모
+                  </div>
                   <textarea
-                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     rows={3}
-                    defaultValue={store.memo ?? ''}
-                    onBlur={(e) => handleMemoUpdate(store.id, e.target.value)}
+                    defaultValue={group.store.memo ?? ''}
+                    onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
                     placeholder="참고 메모를 입력하세요 (자동 저장)"
                   />
                 </div>
-              ))}
-            </div>
-          </div>
+              </section>
+            )
+          })
         )}
       </div>
     </div>
