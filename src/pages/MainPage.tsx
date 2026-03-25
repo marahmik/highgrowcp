@@ -16,10 +16,21 @@ export function MainPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const profile = useAuthStore((s) => s.profile)
+  const session = useAuthStore((s) => s.session)
+  const authLoading = useAuthStore((s) => s.loading)
 
   // 이미 로그인된 경우 리다이렉트
   if (profile) {
     return <Navigate to={profile.role === 'admin' ? '/admin' : '/my'} replace />
+  }
+
+  // 세션은 있지만 프로필 로딩 중 (로그인 직후)
+  if (session && authLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center">
+        <div className="text-muted-foreground">로그인 처리 중...</div>
+      </div>
+    )
   }
 
   async function handleEmailAuth(e: React.FormEvent) {
