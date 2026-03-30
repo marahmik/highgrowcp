@@ -53,7 +53,7 @@ interface PendingWork {
 export function StorePage() {
   const { storeId } = useParams<{ storeId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { user, profile, isAdmin } = useAuthStore()
+  const { user, profile, isAdmin, isStoreManager } = useAuthStore()
 
   const monthParam = searchParams.get('month')
   const monthKey = monthParam ?? format(new Date(), 'yyyy-MM')
@@ -67,11 +67,12 @@ export function StorePage() {
   const [ghostSchedules, setGhostSchedules] = useState<GhostSchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
-
+  
   // 모바일에서 선택된 멤버 (기본값: 본인)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
 
-  const isManager = isAdmin() // 전체 관리자 또는 매니저 직급 확인
+  // isStoreManager를 종속성에 포함시켜 반응성 보장
+  const isManager = useMemo(() => isAdmin() || currentUserRole === 'admin', [isAdmin, isStoreManager, currentUserRole])
   const isLocked = store?.locked ?? false
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
@@ -469,6 +470,7 @@ export function StorePage() {
                     days={days}
                     members={members}
                     schedules={displaySchedules}
+                    ghostSchedules={displayGhostSchedules}
                     currentUserId={selectedMemberId || user?.id || ''}
                     isManager={isManager}
                     isLocked={isLocked && !isManager}

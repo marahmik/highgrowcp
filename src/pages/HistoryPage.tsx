@@ -93,6 +93,7 @@ export function HistoryPage() {
           days={days}
           members={dummyMembers}
           schedules={schedules}
+          ghostSchedules={[]}
           currentUserId={user?.id || ''}
           isManager={false}
           isLocked={true} // 무조건 잠금 (수정 불가)
