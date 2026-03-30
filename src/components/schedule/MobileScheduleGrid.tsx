@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { format, getDay, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns'
 import { EditDropdown } from './EditDropdown'
-import type { Schedule, WorkType, LeaveType } from '@/types/database'
+import type { Schedule, WorkType, LeaveType, GhostSchedule } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
 import { WORK_TYPE_COLORS, LEAVE_TYPE_COLORS, WORK_TYPE_LABELS, LEAVE_TYPE_LABELS, SUPERVISOR_WORK_LABELS } from '@/constants/colors'
 
@@ -10,6 +10,7 @@ interface MobileScheduleGridProps {
   days: Date[]
   members: MemberWithRole[]
   schedules: Schedule[]
+  ghostSchedules: GhostSchedule[]
   currentUserId: string
   isManager: boolean
   isLocked: boolean
@@ -28,20 +29,32 @@ interface EditTarget {
   isSupervisorEdit: boolean
 }
 
-export function MobileScheduleGrid({ currentMonth, days, members, schedules, currentUserId, isManager, isLocked, isSupervisorStore = false, onSave }: MobileScheduleGridProps) {
+export function MobileScheduleGrid({ currentMonth, days, members, schedules, ghostSchedules, currentUserId, isManager, isLocked, isSupervisorStore = false, onSave }: MobileScheduleGridProps) {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
 
   // 내 정보만 필터링
   const myInfo = useMemo(() => members.find(m => m.id === currentUserId), [members, currentUserId])
   
-  // 내 스케줄 맵
+  // 내 스케줄 맵 (단기알바 포함)
   const scheduleMap = useMemo(() => {
-    const map = new Map<string, Schedule>()
+    const map = new Map<string, any>()
+    
+    // 일반 스케줄
     schedules.filter(s => s.user_id === currentUserId).forEach(s => {
       map.set(s.date, s)
     })
+    
+    // 단기알바 스케줄 (ghost-storeId-slot 패턴)
+    const ghostMatch = currentUserId.match(/^ghost-.+-(\d+)$/)
+    if (ghostMatch) {
+      const slot = parseInt(ghostMatch[1])
+      ghostSchedules.filter(g => g.slot === slot).forEach(g => {
+        map.set(g.date, g)
+      })
+    }
+    
     return map
-  }, [schedules, currentUserId])
+  }, [schedules, ghostSchedules, currentUserId])
 
   // 달력 그리드를 위한 날짜 계산 (주의 시작부터 끝까지)
   const calendarDays = useMemo(() => {
