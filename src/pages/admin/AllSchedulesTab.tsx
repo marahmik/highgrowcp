@@ -169,14 +169,14 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
       const promises: any[] = []
 
       if (scheduleUpserts.length > 0) {
-        promises.push(supabase.from('schedules').upsert(scheduleUpserts))
+        promises.push(supabase.from('schedules').upsert(scheduleUpserts, { onConflict: 'store_id,user_id,date' }))
       }
       scheduleDeletes.forEach(d => {
         promises.push(supabase.from('schedules').delete().eq('store_id', d.storeId).eq('user_id', d.userId).eq('date', d.date))
       })
 
       if (ghostUpserts.length > 0) {
-        promises.push(supabase.from('ghost_schedules').upsert(ghostUpserts))
+        promises.push(supabase.from('ghost_schedules').upsert(ghostUpserts, { onConflict: 'store_id,slot,date' }))
       }
       ghostDeletes.forEach(d => {
         promises.push(supabase.from('ghost_schedules').delete().eq('store_id', d.storeId).eq('slot', d.slot).eq('date', d.date))
@@ -187,7 +187,8 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
       if (errors.length > 0) {
         console.error('Admin commit errors:', errors)
-        toast.error(`${errors.length}건의 저장 실패가 발생했습니다.`)
+        const errorMsg = errors.map(e => (e as any).error?.message).filter(Boolean).join(', ')
+        toast.error(`${errors.length}건의 저장 실패: ${errorMsg || '알 수 없는 오류'}`)
       } else {
         toast.success('통합 캘린더의 모든 변경사항이 저장되었습니다.')
         setPendingChanges({})

@@ -331,7 +331,8 @@ export function StorePage() {
       
       if (errors.length > 0) {
         console.error('Commit errors:', errors)
-        toast.error(`${errors.length}건의 저장 실패가 발생했습니다.`)
+        const errorMsg = errors.map(e => e.error?.message).filter(Boolean).join(', ')
+        toast.error(`${errors.length}건의 저장 실패: ${errorMsg || '알 수 없는 오류'}`)
       } else {
         toast.success('변경사항이 저장되었습니다.')
         setPendingChanges({})
