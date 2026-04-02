@@ -13,7 +13,7 @@ export function HistoryPage() {
   const { user, profile } = useAuthStore()
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
   const [schedules, setSchedules] = useState<Schedule[]>([])
-  const [leaveStats, setLeaveStats] = useState({ granted: 0, remaining: 0 })
+  const [leaveGranted, setLeaveGranted] = useState(0)
   const [loading, setLoading] = useState(true)
   
   const days = useMemo(() => eachDayOfInterval({
@@ -28,7 +28,7 @@ export function HistoryPage() {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [schedulesRes, memberRes, allLeavesRes] = await Promise.all([
+    const [schedulesRes, memberRes] = await Promise.all([
       supabase
         .from('schedules')
         .select('*, stores(*)')
@@ -39,12 +39,7 @@ export function HistoryPage() {
         .from('store_members')
         .select('annual_leave')
         .eq('user_id', user.id)
-        .eq('status', 'approved'),
-      supabase
-        .from('schedules')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('leave_type', 'annual')
+        .eq('status', 'approved')
     ])
 
     if (schedulesRes.error) {
@@ -53,14 +48,11 @@ export function HistoryPage() {
 
     const currentMonthSchedules = schedulesRes.data || []
     
-    // 전체 승인 매장에서 받은 연차 총합
+    // 매장 관리자 화면(이름 옆 레터박스)에서 입력된 값(annual_leave) 단순 합산 (보통 1개 소속)
     const totalGranted = (memberRes.data || []).reduce((acc, m) => acc + (m.annual_leave || 0), 0)
-    // 과거 포함 전체 사용한 연차 (leave_type === 'annual')
-    const totalUsed = (allLeavesRes.data || []).length
-    const remaining = Math.max(0, totalGranted - totalUsed) // 음수 방지
 
     setSchedules(currentMonthSchedules)
-    setLeaveStats({ granted: totalGranted, remaining })
+    setLeaveGranted(totalGranted)
     setLoading(false)
   }, [user, currentMonth])
 
@@ -78,10 +70,10 @@ export function HistoryPage() {
     return [{
       ...profile,
       storeRole: 'user',
-      annualLeave: leaveStats.granted,
+      annualLeave: leaveGranted,
       memberId: 'history-dummy',
     }]
-  }, [profile, leaveStats.granted])
+  }, [profile, leaveGranted])
 
   if (loading && schedules.length === 0) {
     return <div className="py-12 text-center text-muted-foreground">기록 로딩 중...</div>
@@ -110,10 +102,10 @@ export function HistoryPage() {
       </div>
 
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        {/* 캘린더 상단 레터박스 연차 표기 */}
+        {/* 캘린더 상단 레터박스 표기 (계산되지 않은 순수 설정값) */}
         <div className="bg-slate-800 text-white text-xs px-4 py-2.5 flex justify-between items-center border-b border-slate-700">
-          <span className="font-medium tracking-wide">총 설정된 연차 개수</span>
-          <span className="font-bold text-[13px] bg-slate-900 px-2 py-0.5 rounded text-amber-400">{leaveStats.granted}일</span>
+          <span className="font-medium tracking-wide">매니저가 설정한 연차</span>
+          <span className="font-bold text-[13px] bg-slate-900 px-2 py-0.5 rounded text-amber-400">{leaveGranted}일</span>
         </div>
         
         <MobileScheduleGrid
@@ -138,7 +130,7 @@ export function HistoryPage() {
           </div>
           <div className="bg-white p-3 rounded-md border shadow-sm">
             <div className="text-[10px] text-muted-foreground">잔여 연차</div>
-            <div className="text-lg font-bold text-amber-600">{leaveStats.remaining}일</div>
+            <div className="text-lg font-bold text-amber-600">{leaveGranted}일</div>
           </div>
         </div>
       </div>
