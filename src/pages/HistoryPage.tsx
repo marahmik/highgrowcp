@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
-import { ko } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -96,7 +95,7 @@ export function HistoryPage() {
         </Button>
         <MonthPickerDropdown 
           currentMonth={currentMonth}
-          onChange={setCurrentMonth}
+          onChange={(newMonth: Date) => setCurrentMonth(newMonth)}
         />
         <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
           <ChevronRight className="h-4 w-4" />

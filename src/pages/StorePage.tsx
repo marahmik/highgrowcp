@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
-import { ko } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare, Info, Ban } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -435,7 +434,7 @@ export function StorePage() {
           </Button>
           <MonthPickerDropdown 
             currentMonth={currentMonth}
-            onChange={(newMonth) => setSearchParams({ month: format(newMonth, 'yyyy-MM') })}
+            onChange={(newMonth: Date) => setSearchParams({ month: format(newMonth, 'yyyy-MM') })}
           />
           <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
             <ChevronRight className="h-4 w-4" />
