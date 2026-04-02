@@ -11,6 +11,7 @@ import { AllSchedulesTab } from '@/pages/admin/AllSchedulesTab'
 import type { Schedule, Profile, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import { toast } from 'sonner'
 import { MobileScheduleGrid } from '@/components/schedule/MobileScheduleGrid'
+import { MonthPickerDropdown } from '@/components/schedule/MonthPickerDropdown'
 
 // 직급 순서 (낮을수록 위에 표시)
 export const ROLE_ORDER: Record<string, number> = {
@@ -432,21 +433,10 @@ export function StorePage() {
           <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="relative inline-flex items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md px-2 py-1 transition-colors">
-            <h2 className="text-lg font-semibold min-w-[90px] text-center">
-              {format(currentMonth, 'yyyy년 M월', { locale: ko })}
-            </h2>
-            <input 
-              type="month" 
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              value={format(currentMonth, 'yyyy-MM')}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setSearchParams({ month: e.target.value })
-                }
-              }}
-            />
-          </div>
+          <MonthPickerDropdown 
+            currentMonth={currentMonth}
+            onChange={(newMonth) => setSearchParams({ month: format(newMonth, 'yyyy-MM') })}
+          />
           <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
