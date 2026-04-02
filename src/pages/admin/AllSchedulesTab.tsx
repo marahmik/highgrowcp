@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
-import { ko } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, MessageSquare, Info, Save, X, Lock, Unlock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -10,6 +9,7 @@ import { ROLE_ORDER } from '@/pages/StorePage'
 import type { Schedule, WorkType, LeaveType, Store, GhostSchedule } from '@/types/database'
 import type { MemberWithRole } from '@/pages/StorePage'
 import { toast } from 'sonner'
+import { MonthPickerDropdown } from '@/components/schedule/MonthPickerDropdown'
 
 interface StoreGroup {
   store: Store
@@ -249,7 +249,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
           </Button>
           <MonthPickerDropdown 
             currentMonth={currentMonth}
-            onChange={(newMonth) => setMonthKey(format(newMonth, 'yyyy-MM'))}
+            onChange={(newMonth: Date) => setMonthKey(format(newMonth, 'yyyy-MM'))}
           />
           <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
             <ChevronRight className="h-4 w-4" />
