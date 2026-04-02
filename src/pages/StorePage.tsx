@@ -517,8 +517,8 @@ export function StorePage() {
         )}
       </div>
 
-      {!isMobile && <hr className="border-t-2" />}
-      {!isMobile && <AllSchedulesTab storeNameFilter="수퍼바이저" />}
+      <hr className="border-t-2" />
+      <AllSchedulesTab storeNameFilter="수퍼바이저" />
 
       {/* 저장 버튼 (변경사항이 있을 때만 표시) */}
       {Object.keys(pendingChanges).length > 0 && (

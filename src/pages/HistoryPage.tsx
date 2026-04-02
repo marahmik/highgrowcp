@@ -13,6 +13,7 @@ export function HistoryPage() {
   const { user, profile } = useAuthStore()
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [leaveStats, setLeaveStats] = useState({ granted: 0, remaining: 0 })
   const [loading, setLoading] = useState(true)
   
   const days = useMemo(() => eachDayOfInterval({
@@ -27,18 +28,39 @@ export function HistoryPage() {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const { data, error } = await supabase
-      .from('schedules')
-      .select('*, stores(*)')
-      .eq('user_id', user.id)
-      .gte('date', monthStart)
-      .lte('date', monthEnd)
+    const [schedulesRes, memberRes, allLeavesRes] = await Promise.all([
+      supabase
+        .from('schedules')
+        .select('*, stores(*)')
+        .eq('user_id', user.id)
+        .gte('date', monthStart)
+        .lte('date', monthEnd),
+      supabase
+        .from('store_members')
+        .select('annual_leave')
+        .eq('user_id', user.id)
+        .eq('status', 'approved'),
+      supabase
+        .from('schedules')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('leave_type', 'annual')
+    ])
 
-    if (error) {
-      console.error('History load error:', error)
-    } else {
-      setSchedules(data || [])
+    if (schedulesRes.error) {
+      console.error('History load error:', schedulesRes.error)
     }
+
+    const currentMonthSchedules = schedulesRes.data || []
+    
+    // 전체 승인 매장에서 받은 연차 총합
+    const totalGranted = (memberRes.data || []).reduce((acc, m) => acc + (m.annual_leave || 0), 0)
+    // 과거 포함 전체 사용한 연차 (leave_type === 'annual')
+    const totalUsed = (allLeavesRes.data || []).length
+    const remaining = Math.max(0, totalGranted - totalUsed) // 음수 방지
+
+    setSchedules(currentMonthSchedules)
+    setLeaveStats({ granted: totalGranted, remaining })
     setLoading(false)
   }, [user, currentMonth])
 
@@ -56,10 +78,10 @@ export function HistoryPage() {
     return [{
       ...profile,
       storeRole: 'user',
-      annualLeave: 0,
+      annualLeave: leaveStats.granted,
       memberId: 'history-dummy',
     }]
-  }, [profile])
+  }, [profile, leaveStats.granted])
 
   if (loading && schedules.length === 0) {
     return <div className="py-12 text-center text-muted-foreground">기록 로딩 중...</div>
@@ -88,6 +110,12 @@ export function HistoryPage() {
       </div>
 
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* 캘린더 상단 레터박스 연차 표기 */}
+        <div className="bg-slate-800 text-white text-xs px-4 py-2.5 flex justify-between items-center border-b border-slate-700">
+          <span className="font-medium tracking-wide">총 설정된 연차 개수</span>
+          <span className="font-bold text-[13px] bg-slate-900 px-2 py-0.5 rounded text-amber-400">{leaveStats.granted}일</span>
+        </div>
+        
         <MobileScheduleGrid
           currentMonth={currentMonth}
           days={days}
@@ -109,8 +137,8 @@ export function HistoryPage() {
             <div className="text-lg font-bold text-primary">{schedules.filter(s => s.work_type).length}일</div>
           </div>
           <div className="bg-white p-3 rounded-md border shadow-sm">
-            <div className="text-[10px] text-muted-foreground">이번 달 연차/요청</div>
-            <div className="text-lg font-bold text-amber-600">{schedules.filter(s => s.leave_type).length}일</div>
+            <div className="text-[10px] text-muted-foreground">잔여 연차</div>
+            <div className="text-lg font-bold text-amber-600">{leaveStats.remaining}일</div>
           </div>
         </div>
       </div>
