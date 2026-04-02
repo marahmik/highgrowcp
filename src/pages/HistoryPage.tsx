@@ -93,9 +93,21 @@ export function HistoryPage() {
         <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-lg font-semibold">
-          {format(currentMonth, 'yyyy년 M월', { locale: ko })}
-        </h2>
+        <div className="relative inline-flex items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md px-2 py-1 transition-colors">
+          <h2 className="text-lg font-semibold min-w-[90px] text-center">
+            {format(currentMonth, 'yyyy년 M월', { locale: ko })}
+          </h2>
+          <input 
+            type="month" 
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            value={format(currentMonth, 'yyyy-MM')}
+            onChange={(e) => {
+              if (e.target.value) {
+                setCurrentMonth(new Date(e.target.value + '-01'))
+              }
+            }}
+          />
+        </div>
         <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
           <ChevronRight className="h-4 w-4" />
         </Button>
