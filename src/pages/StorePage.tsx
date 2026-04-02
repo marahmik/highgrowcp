@@ -531,11 +531,11 @@ export function StorePage() {
 
       {/* 저장 버튼 (변경사항이 있을 때만 표시) */}
       {Object.keys(pendingChanges).length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 p-4 bg-white/90 backdrop-blur-md border shadow-2xl rounded-2xl min-w-[300px] justify-between">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 p-4 bg-white/90 backdrop-blur-md border shadow-2xl rounded-2xl w-[calc(100%-32px)] max-w-sm justify-between transition-all animate-in fade-in slide-in-from-bottom-4">
           <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Unsaved Changes</span>
-            <span className="text-sm font-bold">
-              총 <span className="text-primary">{Object.keys(pendingChanges).length}건</span>의 수정사항
+            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">수정사항 적용 대기 중</span>
+            <span className="text-xs sm:text-sm font-bold">
+              총 <span className="text-primary">{Object.keys(pendingChanges).length}건</span> 수정됨
             </span>
           </div>
           <div className="flex gap-2">

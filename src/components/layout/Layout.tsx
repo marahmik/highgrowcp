@@ -59,17 +59,17 @@ export function Layout({ children }: { children: ReactNode }) {
                 {!loading && (
                   <>
                     {isAdmin && (
-                      <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/admin')}>
+                      <Button variant="outline" size="sm" className="text-[11px] sm:text-xs px-1.5 sm:px-2 h-7 sm:h-8" onClick={() => navigate('/admin')}>
                         관리
                       </Button>
                     )}
                     {hasActiveStore && (
-                      <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/my')}>
+                      <Button variant="outline" size="sm" className="text-[11px] sm:text-xs px-1.5 sm:px-2 h-7 sm:h-8" onClick={() => navigate('/my')}>
                         내근무
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" className="text-xs px-2" onClick={() => navigate('/history')}>
-                      근무기록
+                    <Button variant="outline" size="sm" className="text-[11px] sm:text-xs px-1.5 sm:px-2 h-7 sm:h-8" onClick={() => navigate('/history')}>
+                      {isAdmin ? '기록' : '근무기록'}
                     </Button>
                   </>
                 )}
