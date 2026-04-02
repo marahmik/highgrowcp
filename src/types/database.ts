@@ -56,9 +56,21 @@ export interface GhostSchedule {
   leave_type: LeaveType | null
 }
 
+export interface MonthlyLock {
+  month: string
+  is_locked: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
+      monthly_locks: {
+        Row: MonthlyLock
+        Insert: Omit<MonthlyLock, 'created_at' | 'updated_at'>
+        Update: Partial<Omit<MonthlyLock, 'created_at'>>
+      }
       profiles: {
         Row: Profile
         Insert: Omit<Profile, 'created_at' | 'updated_at'>

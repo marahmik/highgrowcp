@@ -65,6 +65,7 @@ export function StorePage() {
   const [members, setMembers] = useState<MemberWithRole[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [ghostSchedules, setGhostSchedules] = useState<GhostSchedule[]>([])
+  const [globalLock, setGlobalLock] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
   
@@ -73,7 +74,7 @@ export function StorePage() {
 
   // isStoreManager를 종속성에 포함시켜 반응성 보장
   const isManager = useMemo(() => isAdmin() || currentUserRole === 'admin', [isAdmin, isStoreManager, currentUserRole])
-  const isLocked = store?.locked ?? false
+  const isLocked = globalLock || (store?.locked ?? false)
   const isSupervisorStore = store?.name?.includes('수퍼바이저') ?? false
 
   // 미저장된 변경사항 상태: Key="userId_date"
@@ -161,7 +162,7 @@ export function StorePage() {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [storeRes, membersRes, schedulesRes, ghostRes] = await Promise.all([
+    const [storeRes, membersRes, schedulesRes, ghostRes, lockRes] = await Promise.all([
       supabase.from('stores').select('*').eq('id', storeId).single(),
       supabase
         .from('store_members')
@@ -180,6 +181,7 @@ export function StorePage() {
         .eq('store_id', storeId)
         .gte('date', monthStart)
         .lte('date', monthEnd),
+      supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle()
     ])
 
     if (storeRes.data) setStore(storeRes.data)
@@ -219,6 +221,8 @@ export function StorePage() {
     }
     if (schedulesRes.data) setSchedules(schedulesRes.data)
     if (ghostRes.data) setGhostSchedules(ghostRes.data as GhostSchedule[])
+    if (lockRes.data) setGlobalLock(lockRes.data.is_locked)
+    else setGlobalLock(false)
     setLoading(false)
   }, [storeId, monthKey, user?.id, profile?.role, selectedMemberId])
 
@@ -247,11 +251,14 @@ export function StorePage() {
 
   async function toggleLock() {
     if (!storeId || !store) return
+    if (globalLock) {
+      toast.error('시스템 전체 잠금 상태에서는 개별 지점 잠금을 해제할 수 없습니다.')
+      return
+    }
     const newLocked = !store.locked
     await supabase.from('stores').update({ locked: newLocked }).eq('id', storeId)
     setStore({ ...store, locked: newLocked })
   }
-
   function handleSave(userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
     if (!storeId) return
     if (isLocked && !isManager) return
