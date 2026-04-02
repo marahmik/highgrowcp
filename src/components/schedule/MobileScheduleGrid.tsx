@@ -151,14 +151,14 @@ export function MobileScheduleGrid({ currentMonth, days, members, schedules, gho
                   key={day.toISOString()}
                   onClick={(e) => handleCellClick(day, e)}
                   disabled={!isCurrentMonth}
-                  className={`relative flex min-h-[70px] flex-col items-center justify-start p-1 transition-colors hover:bg-muted/30 ${!isCurrentMonth ? 'bg-muted/20 opacity-30' : 'bg-white'}`}
+                  className={`relative flex min-h-[72px] flex-col items-center justify-start p-1 transition-all active:scale-95 ${!isCurrentMonth ? 'bg-muted/10 opacity-20' : 'bg-white'}`}
                 >
-                  <span className={`text-[10px] font-medium ${dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-foreground'} ${isToday ? 'flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white' : ''}`}>
+                  <span className={`text-[11px] font-bold ${dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-foreground'} ${isToday ? 'flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm ring-2 ring-blue-100' : ''}`}>
                     {format(day, 'd')}
                   </span>
                   
                   {label && (
-                    <div className={`mt-1 flex w-full flex-1 items-center justify-center rounded text-[10px] font-bold shadow-sm ${bg} px-0.5 leading-tight text-center`}>
+                    <div className={`mt-1.5 flex w-full flex-1 items-center justify-center rounded-md text-[11px] font-bold shadow-sm ${bg} px-1 leading-none text-center py-1.5`}>
                       {label}
                     </div>
                   )}
