@@ -102,12 +102,6 @@ export function HistoryPage() {
       </div>
 
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        {/* 캘린더 상단 레터박스 표기 (계산되지 않은 순수 설정값) */}
-        <div className="bg-slate-800 text-white text-xs px-4 py-2.5 flex justify-between items-center border-b border-slate-700">
-          <span className="font-medium tracking-wide">매니저가 설정한 연차</span>
-          <span className="font-bold text-[13px] bg-slate-900 px-2 py-0.5 rounded text-amber-400">{leaveGranted}일</span>
-        </div>
-        
         <MobileScheduleGrid
           currentMonth={currentMonth}
           days={days}
