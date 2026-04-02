@@ -34,6 +34,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
   const [storeGroups, setStoreGroups] = useState<StoreGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [globalLock, setGlobalLock] = useState(false)
 
   // 미저장된 변경사항 상태: Key="storeId_userId_date"
   const [pendingChanges, setPendingChanges] = useState<Record<string, PendingWork>>({})
@@ -51,11 +52,12 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [storesRes, membersRes, schedulesRes, ghostRes] = await Promise.all([
+    const [storesRes, membersRes, schedulesRes, ghostRes, lockRes] = await Promise.all([
       supabase.from('stores').select('*').order('name'),
       supabase.from('store_members').select('*, profiles(*)').eq('status', 'approved'),
       supabase.from('schedules').select('*').gte('date', monthStart).lte('date', monthEnd),
       supabase.from('ghost_schedules').select('*').gte('date', monthStart).lte('date', monthEnd),
+      supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle()
     ])
 
     const stores: Store[] = storesRes.data ?? []
