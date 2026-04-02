@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, MessageSquare, Info, Save, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Info, Save, X, Lock, Unlock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -97,6 +97,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     groups.sort((a, b) => b.members.filter(m => !m.isGhost).length - a.members.filter(m => !m.isGhost).length)
 
     setStoreGroups(groups)
+    setGlobalLock(lockRes.data?.is_locked ?? false)
     setLoading(false)
   }, [monthKey, storeNameFilter])
 
@@ -108,7 +109,20 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     setPendingChanges({}) // 월 변경 시 미저장 초기화
   }
 
+  async function toggleGlobalLock() {
+    const newVal = !globalLock
+    setGlobalLock(newVal)
+    const { error } = await supabase.from('monthly_locks').upsert({ month: monthKey, is_locked: newVal })
+    if (error) {
+      toast.error('잠금 설정에 실패했습니다.', { description: error.message })
+      setGlobalLock(!newVal)
+    } else {
+      toast.success(newVal ? '해당 월 캘린더가 잠금 처리되었습니다.' : '해당 월 캘린더 잠금이 해제되었습니다.')
+    }
+  }
+
   function handleSave(storeId: string, userId: string, date: string, workType: WorkType | null, leaveType: LeaveType | null) {
+    if (globalLock) return
     const ghostMatch = userId.match(/^ghost-.+-(\d+)$/)
     const key = ghostMatch ? `${storeId}_ghost-${ghostMatch[1]}_ghost_${date}` : `${storeId}_${userId}_${date}`
     
@@ -191,6 +205,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   }
 
   async function handleAnnualLeaveUpdate(memberId: string, value: number) {
+    if (globalLock) return
     await supabase.from('store_members').update({ annual_leave: value }).eq('id', memberId)
     loadData()
   }
@@ -224,16 +239,30 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex items-center justify-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold">
-          {format(currentMonth, 'yyyy년 M월', { locale: ko })}
-        </h2>
-        <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+      <div className="flex items-center justify-between mb-4 relative max-w-lg mx-auto">
+        <div className="w-24"></div> {/* spacer for centering */}
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-lg font-semibold min-w-[90px] text-center">
+            {format(currentMonth, 'yyyy년 M월', { locale: ko })}
+          </h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex justify-end w-24">
+          <Button 
+            variant={globalLock ? 'destructive' : 'outline'} 
+            size="sm" 
+            onClick={toggleGlobalLock}
+            className="flex items-center gap-1.5 px-2 h-8 text-xs font-semibold shadow-sm"
+          >
+            {globalLock ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{globalLock ? '전체 잠금됨' : '잠금 설정'}</span>
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-12">
