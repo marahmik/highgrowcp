@@ -361,6 +361,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
                     key={monthKey}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     rows={3}
+                    maxLength={2000}
                     defaultValue={currentMemo}
                     onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
                     placeholder="참고 메모를 입력하세요 (자동 저장)"
