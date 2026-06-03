@@ -366,7 +366,14 @@ export function StorePage() {
     const newMemoObj = { ...memoObj, [monthKey]: memoText }
     const newMemoString = JSON.stringify(newMemoObj)
     const { error } = await supabase.from('stores').update({ memo: newMemoString }).eq('id', storeId)
-    if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
+    if (error) { 
+      toast.error('메모 저장 실패', { description: error.message })
+      return 
+    }
+    
+    // 강제 상태 업데이트 및 토스트 메시지를 통한 시각적 피드백
+    setStore(prev => prev ? { ...prev, memo: newMemoString } : prev)
+    toast.success('매장 메모가 성공적으로 저장되었습니다.')
   }
 
   if (loading && !Object.keys(pendingChanges).length) {
