@@ -3,6 +3,10 @@
 .claude/*
 !.claude/skills/
 docs/sum/
+scratch/
+.omp/
+.vercel/
+supabase/.temp/
 
 # Dependencies
 node_modules/
