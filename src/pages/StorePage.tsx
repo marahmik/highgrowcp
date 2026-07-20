@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ChevronLeft, ChevronRight, Lock, Unlock, MessageSquare, Info, Ban } from 'lucide-react'
@@ -65,6 +65,8 @@ export function StorePage() {
   const [members, setMembers] = useState<MemberWithRole[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [ghostSchedules, setGhostSchedules] = useState<GhostSchedule[]>([])
+  const [memo, setMemo] = useState('')
+  const savedMemoRef = useRef('')
   const [globalLock, setGlobalLock] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
@@ -122,34 +124,6 @@ export function StorePage() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // [임시 서비스] 모든 매장 메모 초기화 (2024년 3월 25일 기준 1회 실행)
-  useEffect(() => {
-    const resetAllMemos = async () => {
-      const hasReset = localStorage.getItem('memos_reset_20240325v2')
-      if (!hasReset) {
-        const { error } = await supabase.from('stores').update({ memo: null }).neq('id', '00000000-0000-0000-0000-000000000000')
-        if (!error) {
-          localStorage.setItem('memos_reset_20240325v2', 'true')
-          console.log('All store memos have been reset.')
-        }
-      }
-    }
-    resetAllMemos()
-  }, [])
-
-  const memoObj = useMemo(() => {
-    if (!store?.memo) return {}
-    try {
-      const parsed = JSON.parse(store.memo)
-      if (typeof parsed === 'object' && parsed !== null) return parsed
-    } catch {
-      // legacy fallback
-    }
-    return { 'legacy': store.memo }
-  }, [store?.memo])
-
-  const currentMemo = memoObj[monthKey] ?? (memoObj['legacy'] ?? '')
-
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
     end: endOfMonth(currentMonth),
@@ -162,7 +136,7 @@ export function StorePage() {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [storeRes, membersRes, schedulesRes, ghostRes, lockRes] = await Promise.all([
+    const [storeRes, membersRes, schedulesRes, ghostRes, lockRes, memoRes] = await Promise.all([
       supabase.from('stores').select('*').eq('id', storeId).single(),
       supabase
         .from('store_members')
@@ -181,7 +155,8 @@ export function StorePage() {
         .eq('store_id', storeId)
         .gte('date', monthStart)
         .lte('date', monthEnd),
-      supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle()
+      supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle(),
+      supabase.from('store_memos').select('content').eq('store_id', storeId).eq('month', monthKey).maybeSingle()
     ])
 
     if (storeRes.data) setStore(storeRes.data)
@@ -223,6 +198,9 @@ export function StorePage() {
     if (ghostRes.data) setGhostSchedules(ghostRes.data as GhostSchedule[])
     if (lockRes.data) setGlobalLock(lockRes.data.is_locked)
     else setGlobalLock(false)
+    const memoContent = memoRes.data?.content ?? ''
+    savedMemoRef.current = memoContent
+    setMemo(memoContent)
     setLoading(false)
   }, [storeId, monthKey, user?.id, profile?.role, selectedMemberId])
 
@@ -239,10 +217,17 @@ export function StorePage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${storeId}` }, (payload) => {
          if (payload.new) setStore(prev => prev ? { ...prev, ...payload.new } : payload.new as Store)
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_memos', filter: `store_id=eq.${storeId}` }, (payload) => {
+        const row = payload.new as { month?: string; content?: string } | null
+        if (row?.month === monthKey) {
+          savedMemoRef.current = row.content ?? ''
+          setMemo(row.content ?? '')
+        }
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [storeId, loadData])
+  }, [storeId, monthKey, loadData])
 
   function navigateMonth(direction: 'prev' | 'next') {
     const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1)
@@ -362,17 +347,17 @@ export function StorePage() {
   }
 
   async function handleMemoUpdate(memoText: string) {
-    if (!storeId || !store) return
-    const newMemoObj = { ...memoObj, [monthKey]: memoText }
-    const newMemoString = JSON.stringify(newMemoObj)
-    const { error } = await supabase.from('stores').update({ memo: newMemoString }).eq('id', storeId)
-    if (error) { 
+    if (!storeId || !user) return
+    if (memoText === savedMemoRef.current) return // 변경 없으면 쓰기 스킵 (onBlur는 변경 없어도 발화)
+    const { error } = await supabase.from('store_memos').upsert(
+      { store_id: storeId, month: monthKey, content: memoText, updated_by: user.id },
+      { onConflict: 'store_id,month' }
+    )
+    if (error) {
       toast.error('메모 저장 실패', { description: error.message })
-      return 
+      return
     }
-    
-    // 강제 상태 업데이트 및 토스트 메시지를 통한 시각적 피드백
-    setStore(prev => prev ? { ...prev, memo: newMemoString } : prev)
+    savedMemoRef.current = memoText
     toast.success('매장 메모가 성공적으로 저장되었습니다.')
   }
 
@@ -519,12 +504,12 @@ export function StorePage() {
                   매장 메모
                 </div>
                 <textarea
-                  key={monthKey}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   rows={5}
                   maxLength={2000}
                   readOnly={!isManager}
-                  defaultValue={currentMemo}
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
                   onBlur={(e) => handleMemoUpdate(e.target.value)}
                   placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
                 />

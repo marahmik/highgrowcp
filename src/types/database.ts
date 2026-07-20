@@ -19,8 +19,19 @@ export interface Store {
   name: string
   owner_id: string
   locked: boolean
-  memo: string | null
+  // 참고: DB의 stores.memo 컬럼(레거시 JSON 메모)은 복구용 백업으로만 보존 중이며
+  // 앱에서는 store_memos 테이블을 사용합니다. 복구 완료 후 컬럼과 함께 제거 예정.
   created_at: string
+}
+
+export interface StoreMemo {
+  id: string
+  store_id: string
+  month: string
+  content: string
+  updated_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface StoreMember {
@@ -90,6 +101,11 @@ export interface Database {
         Row: Schedule
         Insert: Omit<Schedule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Schedule, 'id' | 'created_at'>>
+      }
+      store_memos: {
+        Row: StoreMemo
+        Insert: Omit<StoreMemo, 'id' | 'created_at' | 'updated_at'> & { id?: string }
+        Update: Partial<Omit<StoreMemo, 'id' | 'created_at'>>
       }
     }
   }

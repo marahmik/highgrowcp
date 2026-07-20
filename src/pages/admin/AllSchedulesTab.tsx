@@ -34,6 +34,8 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
   const [storeGroups, setStoreGroups] = useState<StoreGroup[]>([])
   const [loading, setLoading] = useState(true)
+  // 월별 매장 메모 맵: Key=store_id, Value=해당 월 메모 내용
+  const [memos, setMemos] = useState<Record<string, string>>({})
   const [globalLock, setGlobalLock] = useState(false)
 
   // 미저장된 변경사항 상태: Key="storeId_userId_date"
@@ -52,12 +54,13 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
 
-    const [storesRes, membersRes, schedulesRes, ghostRes, lockRes] = await Promise.all([
+    const [storesRes, membersRes, schedulesRes, ghostRes, lockRes, memosRes] = await Promise.all([
       supabase.from('stores').select('*').order('name'),
       supabase.from('store_members').select('*, profiles(*)').eq('status', 'approved'),
       supabase.from('schedules').select('*').gte('date', monthStart).lte('date', monthEnd),
       supabase.from('ghost_schedules').select('*').gte('date', monthStart).lte('date', monthEnd),
-      supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle()
+      supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle(),
+      supabase.from('store_memos').select('store_id, content').eq('month', monthKey)
     ])
 
     const stores: Store[] = storesRes.data ?? []
@@ -98,7 +101,13 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
     groups.sort((a, b) => b.members.filter(m => !m.isGhost).length - a.members.filter(m => !m.isGhost).length)
 
+    const memoMap: Record<string, string> = {}
+    for (const m of memosRes.data ?? []) {
+      memoMap[m.store_id] = m.content
+    }
+
     setStoreGroups(groups)
+    setMemos(memoMap)
     setGlobalLock(lockRes.data?.is_locked ?? false)
     setLoading(false)
   }, [monthKey, storeNameFilter])
@@ -214,25 +223,14 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   }
 
   async function handleMemoUpdate(storeId: string, memoText: string) {
-    const group = storeGroups.find(g => g.store.id === storeId)
-    if (!group) return
-
-    let currentMemoObj: Record<string, string> = {}
-    try {
-      const parsed = JSON.parse(group.store.memo || '{}')
-      if (typeof parsed === 'object' && parsed !== null) {
-        currentMemoObj = parsed
-      }
-    } catch {
-      currentMemoObj = { 'legacy': group.store.memo || '' }
-    }
-
-    const newMemoObj = { ...currentMemoObj, [monthKey]: memoText }
-    const newMemoString = JSON.stringify(newMemoObj)
-
-    const { error } = await supabase.from('stores').update({ memo: newMemoString }).eq('id', storeId)
+    if (!user) return
+    if (memoText === (memos[storeId] ?? '')) return // 변경 없으면 쓰기 스킵 (onBlur는 변경 없어도 발화)
+    const { error } = await supabase.from('store_memos').upsert(
+      { store_id: storeId, month: monthKey, content: memoText, updated_by: user.id },
+      { onConflict: 'store_id,month' }
+    )
     if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
-    setStoreGroups(prev => prev.map(g => g.store.id === storeId ? { ...g, store: { ...g.store, memo: newMemoString } } : g))
+    setMemos(prev => ({ ...prev, [storeId]: memoText }))
     toast.success('메모가 저장되었습니다.')
   }
 
@@ -305,15 +303,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
               }
             })
 
-            const memoObj = (() => {
-               if (!group.store.memo) return {}
-               try {
-                 const parsed = JSON.parse(group.store.memo)
-                 if (typeof parsed === 'object' && parsed !== null) return parsed
-               } catch { }
-               return { 'legacy': group.store.memo }
-            })()
-            const currentMemo = memoObj[monthKey] ?? (memoObj['legacy'] ?? '')
+            const currentMemo = memos[group.store.id] ?? ''
             
             return (
               <section key={group.store.id} className="space-y-4">
@@ -358,7 +348,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
                     매장 메모
                   </div>
                   <textarea
-                    key={monthKey}
+                    key={`${group.store.id}_${monthKey}`}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     rows={3}
                     maxLength={2000}
