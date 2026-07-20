@@ -91,9 +91,9 @@ Supabase는 데이터베이스와 로그인 기능을 제공하는 무료 서비
 2. **API** 탭을 클릭합니다.
 3. 아래 두 가지를 복사해서 메모장에 저장해 두세요:
    - **Project URL** — `https://xxxxxxxx.supabase.co` 형태
-   - **anon public** 키 — `eyJhbGciOiJIUzI1NiIs...` 형태의 긴 문자열
+   - **Publishable key** — `sb_publishable_...` 형태의 공개 클라이언트 키
 
-> **주의**: `service_role` 키는 절대 외부에 노출하지 마세요. 우리가 사용하는 것은 `anon` 키입니다.
+> **주의**: `secret` 및 `service_role` 키는 RLS를 우회하므로 브라우저나 저장소에 절대 노출하지 마세요. 클라이언트에는 publishable 키만 사용합니다.
 
 ---
 
@@ -187,10 +187,12 @@ cp .env.example .env
 
 ```env
 VITE_SUPABASE_URL=https://내프로젝트ID.supabase.co
-VITE_SUPABASE_ANON_KEY=내anon키
+VITE_SUPABASE_ANON_KEY=내publishable키
 ```
 
 > **주의**: `.env` 파일은 `.gitignore`에 포함되어 있어서 GitHub에 올라가지 않습니다. 안심하세요.
+
+> **개발 규칙**: 일회성 스크립트는 Git에서 제외된 `scratch/`에 작성하고, 환경변수 fallback에 실제 시크릿을 하드코딩하지 마세요.
 
 #### 5-4. 로컬에서 실행해보기
 
@@ -230,7 +232,7 @@ GitHub Actions가 빌드할 때 Supabase 키를 사용할 수 있도록 설정�
 | Name | Value |
 |------|-------|
 | `VITE_SUPABASE_URL` | `https://내프로젝트ID.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | `내anon키` |
+| `VITE_SUPABASE_ANON_KEY` | `내publishable키` |
 
 #### 6-3. GitHub Pages 활성화
 
