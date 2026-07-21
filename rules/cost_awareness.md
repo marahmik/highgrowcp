@@ -2,7 +2,7 @@
 
 <!-- Inspired by ECC cost-tracker hook, which logs per-session token counts and
      estimated USD cost (Haiku ~$0.8/$4.0 per 1M in/out, Sonnet ~$3/$15,
-     Opus ~$15/$75) to ~/.claude/metrics/costs.jsonl. -->
+     Opus ~$15/$75) to ~/.omp/metrics/costs.jsonl. -->
 
 ## MUST: model selection — use the cheapest model that can do the job
 

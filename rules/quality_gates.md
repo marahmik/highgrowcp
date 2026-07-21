@@ -84,6 +84,10 @@ Whether hooks are active or not, the gate failure protocol above applies to fail
 
 ---
 
+## Adversarial Verification Gates
+
+Plan-attack, test-attack, completion-attack 게이트는 [`rules/adversarial_review.md`](adversarial_review.md)에서 별도 정의.
+
 ## Self-Check
 
 - [ ] Did I discover gate commands from the repo rather than guessing?

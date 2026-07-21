@@ -8,7 +8,7 @@ Eval-Driven Development: define expected behavior before implementation, then ve
 - [ ] Grader type selected: code-based (deterministic), model-based, or human review
 - [ ] Pass criteria set: pass@k threshold specified (e.g., pass@3 > 90%)
 - [ ] Baseline recorded (if replacing or modifying existing behavior)
-- [ ] Eval storage location created: `.claude/evals/{feature}.md`
+- [ ] Eval storage location created: `.omp/evals/{feature}.md`
 
 
 ## During Implementation

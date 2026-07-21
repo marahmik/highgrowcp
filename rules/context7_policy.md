@@ -1,5 +1,7 @@
 # Context7 Policy (Trigger-Based)
 
+> **OMP registration note**: the Context7 MCP server must be registered in OMP's own MCP config to be available (see `omp://mcp-config.md`) — Claude Code's `~/.claude.json` is not read by OMP. The policy below is unchanged.
+
 ## MUST: use Context7 when the risk is real
 
 You MUST use Context7 when any of the following is true:

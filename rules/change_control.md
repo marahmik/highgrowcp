@@ -1,6 +1,6 @@
 # Change Control (Scope, Minimal Change, Tidy)
 
-<!-- Harness: scope-gate, context-gate enforce this automatically -->
+<!-- Harness: context-gate (read-before-edit); scope is via Surgical Changes + PR review -->
 
 ## MUST: minimal change first
 

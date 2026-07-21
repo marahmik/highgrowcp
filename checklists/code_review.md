@@ -22,10 +22,17 @@ Quick-reference for code reviews. Full policy: [`rules/code_review_policy.md`](.
 
 ## Error handling (HIGH)
 
-- [ ] No unhandled promise rejections or unguarded async calls
-- [ ] No empty catch blocks that silently swallow failures
+Includes silent-failure patterns — see [`rules/code_review_policy.md`](../rules/code_review_policy.md#silent-failures-high) for full table.
+
+- [ ] No unhandled promise rejections or unguarded async calls (missing `await` / `.catch`)
+- [ ] No empty catch blocks (`catch {}` / `except: pass`) that silently swallow failures
+- [ ] No swallowed exceptions returning `null`/`undefined` without a caller-checked contract
+- [ ] No dangerous fallbacks (returning `[]`, cached dummy, or default on failure without staleness signal)
+- [ ] No lost stack traces (re-thrown errors preserve `cause` / original stack)
+- [ ] No shell scripts that print error then `exit 0` (use `set -e` or explicit non-zero exit)
 - [ ] User-facing errors are clear and do not leak internal details
 - [ ] Failure paths are tested or at minimum reachable
+- [ ] Every catch/except block: re-throws, logs+returns typed failure, or has a "why safe" comment
 
 ## Performance (HIGH)
 
