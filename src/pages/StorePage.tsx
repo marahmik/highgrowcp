@@ -67,6 +67,11 @@ export function StorePage() {
   const [ghostSchedules, setGhostSchedules] = useState<GhostSchedule[]>([])
   const [memo, setMemo] = useState('')
   const savedMemoRef = useRef('')
+  const activeMemoKeyRef = useRef('')
+  const memoValueRef = useRef('')
+  const memoDirtyRef = useRef(false)
+  const memoSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const memoSavePendingRef = useRef(0)
   const [globalLock, setGlobalLock] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<string>('parttimer')
@@ -129,8 +134,16 @@ export function StorePage() {
     end: endOfMonth(currentMonth),
   })
 
+  useEffect(() => {
+    activeMemoKeyRef.current = `${storeId ?? ''}:${monthKey}`
+    savedMemoRef.current = ''
+    memoValueRef.current = ''
+    memoDirtyRef.current = false
+  }, [storeId, monthKey])
+
   const loadData = useCallback(async () => {
     if (!storeId) return
+    const requestedMemoKey = `${storeId}:${monthKey}`
     setLoading(true)
 
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
@@ -158,6 +171,8 @@ export function StorePage() {
       supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle(),
       supabase.from('store_memos').select('content').eq('store_id', storeId).eq('month', monthKey).maybeSingle()
     ])
+
+    if (activeMemoKeyRef.current !== requestedMemoKey) return
 
     if (storeRes.data) setStore(storeRes.data)
     if (membersRes.data) {
@@ -199,8 +214,14 @@ export function StorePage() {
     if (lockRes.data) setGlobalLock(lockRes.data.is_locked)
     else setGlobalLock(false)
     const memoContent = memoRes.data?.content ?? ''
-    savedMemoRef.current = memoContent
-    setMemo(memoContent)
+    if (activeMemoKeyRef.current === requestedMemoKey) {
+      savedMemoRef.current = memoContent
+      if (!memoDirtyRef.current || memoValueRef.current === memoContent) {
+        memoValueRef.current = memoContent
+        memoDirtyRef.current = false
+        setMemo(memoContent)
+      }
+    }
     setLoading(false)
   }, [storeId, monthKey, user?.id, profile?.role, selectedMemberId])
 
@@ -219,9 +240,15 @@ export function StorePage() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_memos', filter: `store_id=eq.${storeId}` }, (payload) => {
         const row = payload.new as { month?: string; content?: string } | null
-        if (row?.month === monthKey) {
-          savedMemoRef.current = row.content ?? ''
-          setMemo(row.content ?? '')
+        const eventMemoKey = `${storeId}:${row?.month ?? ''}`
+        if (row?.month === monthKey && activeMemoKeyRef.current === eventMemoKey) {
+          const memoContent = row.content ?? ''
+          savedMemoRef.current = memoContent
+          if (!memoDirtyRef.current || memoValueRef.current === memoContent) {
+            memoValueRef.current = memoContent
+            memoDirtyRef.current = false
+            setMemo(memoContent)
+          }
         }
       })
       .subscribe()
@@ -348,16 +375,36 @@ export function StorePage() {
 
   async function handleMemoUpdate(memoText: string) {
     if (!storeId || !user) return
-    if (memoText === savedMemoRef.current) return // 변경 없으면 쓰기 스킵 (onBlur는 변경 없어도 발화)
-    const { error } = await supabase.from('store_memos').upsert(
-      { store_id: storeId, month: monthKey, content: memoText, updated_by: user.id },
-      { onConflict: 'store_id,month' }
-    )
-    if (error) {
-      toast.error('메모 저장 실패', { description: error.message })
+    const savingMemoKey = `${storeId}:${monthKey}`
+    if (activeMemoKeyRef.current !== savingMemoKey) return
+    if (memoText === savedMemoRef.current && memoSavePendingRef.current === 0) {
+      memoDirtyRef.current = false
       return
     }
-    savedMemoRef.current = memoText
+    memoSavePendingRef.current += 1
+    const saveRequest = memoSaveQueueRef.current.then(async () => {
+      const { error } = await supabase.from('store_memos').upsert(
+        { store_id: storeId, month: monthKey, content: memoText, updated_by: user.id },
+        { onConflict: 'store_id,month' }
+      )
+      if (error) throw new Error(error.message)
+    })
+    memoSaveQueueRef.current = saveRequest.catch(() => undefined)
+
+    try {
+      await saveRequest
+    } catch (error) {
+      toast.error('메모 저장 실패', {
+        description: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
+      })
+      return
+    } finally {
+      memoSavePendingRef.current -= 1
+    }
+    if (activeMemoKeyRef.current === savingMemoKey) {
+      savedMemoRef.current = memoText
+      memoDirtyRef.current = memoValueRef.current !== memoText
+    }
     toast.success('매장 메모가 성공적으로 저장되었습니다.')
   }
 
@@ -508,8 +555,14 @@ export function StorePage() {
                   rows={5}
                   maxLength={2000}
                   readOnly={!isManager}
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
+                  value={activeMemoKeyRef.current === `${storeId ?? ''}:${monthKey}` ? memo : ''}
+                  onChange={(e) => {
+                    if (activeMemoKeyRef.current !== `${storeId ?? ''}:${monthKey}`) return
+                    const memoText = e.target.value
+                    memoValueRef.current = memoText
+                    memoDirtyRef.current = memoText !== savedMemoRef.current
+                    setMemo(memoText)
+                  }}
                   onBlur={(e) => handleMemoUpdate(e.target.value)}
                   placeholder={isManager ? "매니저 전달사항 또는 참고 메모를 입력하세요 (자동 저장)" : "등록된 메모가 없습니다."}
                 />

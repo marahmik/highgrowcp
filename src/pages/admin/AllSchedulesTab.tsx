@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { ChevronLeft, ChevronRight, MessageSquare, Info, Save, X, Lock, Unlock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -36,9 +36,18 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
   const [loading, setLoading] = useState(true)
   // 월별 매장 메모 맵: Key=store_id, Value=해당 월 메모 내용
   const [memos, setMemos] = useState<Record<string, string>>({})
+  const [memoDrafts, setMemoDrafts] = useState<Record<string, string>>({})
   const [globalLock, setGlobalLock] = useState(false)
 
   // 미저장된 변경사항 상태: Key="storeId_userId_date"
+  const activeMemoQueryKey = `${monthKey}:${storeNameFilter ?? 'all'}`
+  const activeMemoQueryKeyRef = useRef(activeMemoQueryKey)
+  const memoSaveQueuesRef = useRef(new Map<string, Promise<void>>())
+
+  useEffect(() => {
+    activeMemoQueryKeyRef.current = activeMemoQueryKey
+    setMemoDrafts({})
+  }, [activeMemoQueryKey])
   const [pendingChanges, setPendingChanges] = useState<Record<string, PendingWork>>({})
 
   const days = eachDayOfInterval({
@@ -53,6 +62,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
     setLoading(true)
     const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
     const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
+    const requestedMemoQueryKey = `${monthKey}:${storeNameFilter ?? 'all'}`
 
     const [storesRes, membersRes, schedulesRes, ghostRes, lockRes, memosRes] = await Promise.all([
       supabase.from('stores').select('*').order('name'),
@@ -62,6 +72,8 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
       supabase.from('monthly_locks').select('is_locked').eq('month', monthKey).maybeSingle(),
       supabase.from('store_memos').select('store_id, content').eq('month', monthKey)
     ])
+
+    if (activeMemoQueryKeyRef.current !== requestedMemoQueryKey) return
 
     const stores: Store[] = storesRes.data ?? []
     const allMembers: any[] = membersRes.data ?? []
@@ -114,10 +126,35 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
   useEffect(() => { loadData() }, [loadData])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel(`store-memos-admin-${monthKey}-${storeNameFilter ?? 'all'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_memos', filter: `month=eq.${monthKey}` }, (payload) => {
+        const row = payload.new as { store_id?: string; month?: string; content?: string } | null
+        if (
+          !row?.store_id
+          || row.month !== monthKey
+          || activeMemoQueryKeyRef.current !== `${row.month}:${storeNameFilter ?? 'all'}`
+        ) return
+
+        const memoContent = row.content ?? ''
+        setMemos(prev => ({ ...prev, [row.store_id!]: memoContent }))
+        setMemoDrafts(prev => {
+          if (prev[row.store_id!] !== memoContent) return prev
+          const next = { ...prev }
+          delete next[row.store_id!]
+          return next
+        })
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [monthKey, storeNameFilter])
+
   function navigateMonth(direction: 'prev' | 'next') {
     const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1)
     setMonthKey(format(newMonth, 'yyyy-MM'))
-    setPendingChanges({}) // 월 변경 시 미저장 초기화
+    setPendingChanges({}) // 월 변경 시 미저장 일정 초기화
   }
 
   async function toggleGlobalLock() {
@@ -224,13 +261,53 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
 
   async function handleMemoUpdate(storeId: string, memoText: string) {
     if (!user) return
-    if (memoText === (memos[storeId] ?? '')) return // 변경 없으면 쓰기 스킵 (onBlur는 변경 없어도 발화)
-    const { error } = await supabase.from('store_memos').upsert(
-      { store_id: storeId, month: monthKey, content: memoText, updated_by: user.id },
-      { onConflict: 'store_id,month' }
-    )
-    if (error) { toast.error('메모 저장 실패', { description: error.message }); return }
-    setMemos(prev => ({ ...prev, [storeId]: memoText }))
+    const savingMonth = monthKey
+    const savingMemoQueryKey = activeMemoQueryKey
+    const savingMemoKey = `${storeId}:${savingMonth}`
+    const hasPendingSave = memoSaveQueuesRef.current.has(savingMemoKey)
+    if (memoText === (memos[storeId] ?? '') && !hasPendingSave) {
+      setMemoDrafts(prev => {
+        if (!(storeId in prev)) return prev
+        const next = { ...prev }
+        delete next[storeId]
+        return next
+      })
+      return
+    }
+
+    const previousSave = memoSaveQueuesRef.current.get(savingMemoKey) ?? Promise.resolve()
+    const saveRequest = previousSave.then(async () => {
+      const { error } = await supabase.from('store_memos').upsert(
+        { store_id: storeId, month: savingMonth, content: memoText, updated_by: user.id },
+        { onConflict: 'store_id,month' }
+      )
+      if (error) throw new Error(error.message)
+    })
+    const queueTail = saveRequest.catch(() => undefined)
+    memoSaveQueuesRef.current.set(savingMemoKey, queueTail)
+
+    try {
+      await saveRequest
+    } catch (error) {
+      toast.error('메모 저장 실패', {
+        description: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
+      })
+      return
+    } finally {
+      if (memoSaveQueuesRef.current.get(savingMemoKey) === queueTail) {
+        memoSaveQueuesRef.current.delete(savingMemoKey)
+      }
+    }
+
+    if (activeMemoQueryKeyRef.current === savingMemoQueryKey) {
+      setMemos(prev => ({ ...prev, [storeId]: memoText }))
+      setMemoDrafts(prev => {
+        if (prev[storeId] !== memoText) return prev
+        const next = { ...prev }
+        delete next[storeId]
+        return next
+      })
+    }
     toast.success('메모가 저장되었습니다.')
   }
 
@@ -303,7 +380,7 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
               }
             })
 
-            const currentMemo = memos[group.store.id] ?? ''
+            const currentMemo = memoDrafts[group.store.id] ?? memos[group.store.id] ?? ''
             
             return (
               <section key={group.store.id} className="space-y-4">
@@ -352,7 +429,8 @@ export function AllSchedulesTab({ storeNameFilter }: AllSchedulesTabProps) {
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     rows={3}
                     maxLength={2000}
-                    defaultValue={currentMemo}
+                    value={currentMemo}
+                    onChange={(e) => setMemoDrafts(prev => ({ ...prev, [group.store.id]: e.target.value }))}
                     onBlur={(e) => handleMemoUpdate(group.store.id, e.target.value)}
                     placeholder="참고 메모를 입력하세요 (자동 저장)"
                   />
