@@ -78,10 +78,24 @@ Flag immediately — these can cause real damage:
 - Functions exceeding 50 lines — split by responsibility
 - Files exceeding 800 lines — extract modules
 - Nesting depth exceeding 4 levels — flatten with early returns or extracted helpers
-- Unhandled promise rejections or empty catch blocks
 - Debug logging (`console.log`, `print`, etc.) left in production paths
 - Dead code: commented-out blocks, unused imports, unreachable branches
 - Missing tests for new logic paths
+
+### Silent failures (HIGH)
+
+Errors that fail without an observable signal cause hidden data loss and untraceable bugs. Flag every instance. Authoring guidance counterpart: [`coding_standards.md` §Explicit error handling](coding_standards.md#must-explicit-error-handling).
+
+| Pattern | Example | Why it matters |
+|---|---|---|
+| Empty catch | `try { ... } catch {}` / `except: pass` | Error fully swallowed; caller proceeds as if success |
+| Swallowed exceptions | `catch (e) { return null }` without a documented null-vs-error contract | Failure becomes indistinguishable from "no result" |
+| Dangerous fallback | DB unavailable → return `[]`; API failure → cached dummy without staleness signal | Silent data corruption or stale state propagation |
+| Lost stack trace | `catch (e) { throw new Error('failed') }` (drops `e.cause`/original stack) | Root cause unrecoverable in logs |
+| Unawaited promise | async function calling another async without `await` or `.catch` | Unhandled rejection; error never surfaces |
+| Shell `exit 0` after error | script prints error then `exit 0`, or omits `set -e` | CI sees green; failure invisible |
+
+Rule of thumb: every catch/except block must either (a) re-throw (preserving cause), (b) log AND return a typed failure result with a contract the caller checks, or (c) include a comment explaining why suppression is safe in this specific path.
 
 ## MEDIUM: maintainability findings
 
@@ -136,7 +150,7 @@ If low-confidence observations exist, append them after the summary under a **No
 
 ## SHOULD: project-specific conventions
 
-When project conventions exist in `CLAUDE.md` or linked rules, SHOULD check for adherence. Examples:
+When project conventions exist in `AGENTS.md` or linked rules, SHOULD check for adherence. Examples:
 
 - Immutability requirements (spread over mutation)
 - Database migration patterns

@@ -61,7 +61,7 @@ For docs/policy-only mode, verification MUST include these deterministic artifac
 
 1. **Link integrity check**: confirm modified links/anchors resolve (in-repo paths and section anchors).
 2. **Cross-reference check**: confirm updated references still point to the canonical source docs.
-3. **Rule conflict checklist**: explicitly check for contradictions against `CLAUDE.md` and linked rule files.
+3. **Rule conflict checklist**: explicitly check for contradictions against `AGENTS.md` and linked rule files.
 
 ### Required evidence format (docs-only PRs)
 

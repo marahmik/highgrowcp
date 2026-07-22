@@ -10,7 +10,7 @@ Defend against attacks that exploit the agent's trust model — prompt injection
 
 ## MUST: Audit external links in configuration
 
-Every external URL in skills, rules, CLAUDE.md, and MCP configs is a potential injection vector.
+Every external URL in skills, rules, AGENTS.md, and MCP configs is a potential injection vector.
 
 Before trusting linked content:
 
@@ -72,9 +72,9 @@ Rationale: If the agent is compromised, blast radius is limited to the agent's a
 
 Regularly audit files the agent reads at session start:
 
-- `MEMORY.md` and auto-memory files (`~/.claude/projects/*/memory/`)
-- Session state files (`.omc/sessions/`, `.claude/sessions/`)
-- Notepad files (`.omc/notepads/`)
+- `MEMORY.md` and auto-memory files (`~/.claude/projects/*/memory/` — OMC memory)
+- Session state files (`~/.omp/agent/sessions/`)
+- Notepad files (`.omp/notepads/`)
 
 Look for: unexpected instructions, content you didn't write, injected rules.
 

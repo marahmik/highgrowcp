@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Enforceable code shape constraints that prevent quality drift. These are language-agnostic — language-specific rules belong in project-level `.claude/rules/`.
+Enforceable code shape constraints that prevent quality drift. These are language-agnostic — language-specific rules belong in project-level `rules/`.
 
 ---
 

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# post-commit: intentionally a NO-OP.
+#
+# Harness version bumps used to fire here on every commit, which produced one
+# version per commit (churn). Bumping is now DELIBERATE: after a harness change
+# lands on main, run `scripts/harness-version-bump.sh` once (see its header).
+#
+# This stub is kept (and synced) so that `harness-check` / `harness-sync`
+# overwrites any consumer's older auto-bump post-commit with this no-op, stopping
+# the churn in already-registered repos too.
+exit 0

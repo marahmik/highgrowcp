@@ -1,10 +1,6 @@
 
 # Local files
-.claude/*
-!.claude/skills/
-docs/sum/
 scratch/
-.omp/
 .vercel/
 supabase/.temp/
 
@@ -21,3 +17,13 @@ dist/
 # IDE
 .vscode/
 .idea/
+
+# --- OMP harness (added by /skill:migrate) ---
+.omp/harness-state/
+.omp/state/
+docs/sum/
+docs/brainstorming/
+docs/reviews/
+docs/harness/*-skip
+docs/harness/*-done
+.omc/
