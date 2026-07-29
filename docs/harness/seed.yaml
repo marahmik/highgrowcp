@@ -1,5 +1,6 @@
 version: 2
-status: approved
+status: done
+completed: 2026-07-29
 task_id: 20260729-234210-069d
 goal: "전체 관리자가 퇴사자 목록에서 대상자를 선택해 해당 매장의 과거 근무기록을 월별·조회 전용으로 확인한다."
 constraints:
