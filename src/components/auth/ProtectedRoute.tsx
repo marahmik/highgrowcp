@@ -4,12 +4,13 @@ import { useAuthStore } from '@/stores/authStore'
 interface ProtectedRouteProps {
   children: React.ReactNode
   requireAdmin?: boolean
+  requireSuperAdmin?: boolean
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { session, loading, isAdmin } = useAuthStore()
+export function ProtectedRoute({ children, requireAdmin = false, requireSuperAdmin = false }: ProtectedRouteProps) {
+  const { session, profile, profileResolved, loading, isAdmin } = useAuthStore()
 
-  if (loading) {
+  if (loading || (session && requireSuperAdmin && !profileResolved)) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-muted-foreground">로딩 중...</div>
@@ -22,6 +23,10 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   }
 
   if (requireAdmin && !isAdmin()) {
+    return <Navigate to="/my" replace />
+  }
+
+  if (requireSuperAdmin && (profile?.id !== session.user.id || profile.role !== 'admin')) {
     return <Navigate to="/my" replace />
   }
 

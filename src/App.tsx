@@ -8,6 +8,7 @@ import { MyPage } from '@/pages/MyPage'
 import { StorePage } from '@/pages/StorePage'
 import { AdminPage } from '@/pages/admin/AdminPage'
 import { HistoryPage } from '@/pages/HistoryPage'
+import { ResignedHistoryPage } from '@/pages/admin/ResignedHistoryPage'
 
 export default function App() {
   return (
@@ -37,6 +38,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <HistoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/resigned/:memberId/history"
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  <ResignedHistoryPage />
                 </ProtectedRoute>
               }
             />

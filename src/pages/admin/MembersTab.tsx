@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Check, X, Ban, Trash2, UserMinus, Edit2, Info, Calendar } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, X, Ban, Trash2, UserMinus, Edit2, Info, Calendar, History } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,31 +23,35 @@ const ROLE_OPTIONS = [
 ]
 
 export function MembersTab() {
+  const navigate = useNavigate()
   const [members, setMembers] = useState<MemberWithDetails[]>([])
   const [unaffiliated, setUnaffiliated] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadMembers()
-  }, [])
-
-  async function loadMembers() {
-    setLoading(true)
+  const loadMembers = useCallback(async () => {
     const [membersRes, profilesRes] = await Promise.all([
       supabase.from('store_members').select('*, profiles(*), stores(*)').order('created_at', { ascending: false }),
       supabase.from('profiles').select('*').order('display_name')
     ])
 
     if (membersRes.data) setMembers(membersRes.data as MemberWithDetails[])
-    
+
     if (profilesRes.data && membersRes.data) {
-      const memberUserIds = new Set(membersRes.data.map((m: any) => m.user_id))
+      const memberUserIds = new Set((membersRes.data as StoreMember[]).map((member) => member.user_id))
       const unaffiliatedProfiles = profilesRes.data.filter(p => !memberUserIds.has(p.id))
       setUnaffiliated(unaffiliatedProfiles)
     }
-    
+
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      void loadMembers()
+    }, 0)
+
+    return () => window.clearTimeout(loadTimer)
+  }, [loadMembers])
 
   async function updateMemberStatus(id: string, status: 'approved' | 'rejected' | 'banned') {
     if (status === 'banned' && !confirm('이 회원을 정말 탈퇴(밴) 처리하시겠습니까?')) return
@@ -210,7 +215,7 @@ export function MembersTab() {
           </h3>
           {resigned.map((m) => (
             <MemberCard key={m.id} member={m} onRename={() => renameMember(m.profiles.id, m.profiles.display_name)}>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="relative">
                   <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
                   <Input 
@@ -221,6 +226,15 @@ export function MembersTab() {
                     title="퇴사일을 지정하면 해당 일자 이후의 모든 스케줄이 자동 삭제됩니다."
                   />
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => navigate(`/admin/resigned/${m.id}/history`)}
+                >
+                  <History className="mr-1 h-3 w-3" />
+                  근무기록
+                </Button>
                 <div className="flex items-center rounded-md bg-muted p-0.5">
                   <Button
                     size="sm"
@@ -300,8 +314,8 @@ function MemberCard({ member, children, onRename }: { member: MemberWithDetails;
   const badge = ROLE_BADGE[member.role]
   return (
     <Card>
-      <CardContent className="flex items-center justify-between p-3">
-        <div className="flex items-center gap-3">
+      <CardContent className="flex flex-col items-stretch gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <div>
             <div className="flex items-center gap-1">
               <p className="text-sm font-medium">{member.profiles.display_name}</p>
@@ -315,7 +329,7 @@ function MemberCard({ member, children, onRename }: { member: MemberWithDetails;
             </div>
           </div>
         </div>
-        <div className="flex gap-1 items-center">{children}</div>
+        <div className="flex flex-wrap items-center justify-end gap-1">{children}</div>
       </CardContent>
     </Card>
   )

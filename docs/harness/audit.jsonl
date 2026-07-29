@@ -1,0 +1,17 @@
+{"ts":"2026-07-29T14:42:10.624Z","event":"brainstorm_referenced","actor":"user","meta":{"path":"docs/brainstorming/scratchboard.md"}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"kickoff_completed","actor":"assistant","meta":{"topic":"퇴사자 근무기록 관리자 조회"}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"seed_generated","actor":"assistant","meta":{"seed_path":"docs/harness/seed.yaml","status":"draft","version":1}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"rubric_evaluated","actor":"assistant","meta":{"goal":"HIGH","constraints":"HIGH","success":"HIGH","context":"HIGH","coverage":"HIGH"}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"tdd_exception_approved","actor":"user","meta":{"reason":"테스트 인프라 없음; 빌드·린트·브라우저 수동 E2E로 검증"}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"readme_initialized","actor":"assistant","meta":{"skipped":"user_modified"}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"startdev_started","actor":"assistant","meta":{"seed_version":1,"seed_status":"draft"}}
+{"ts":"2026-07-29T14:42:10.624Z","event":"test_plan_saved","actor":"assistant","meta":{"task_id":"20260729-234210-069d","path":"docs/harness/test-plan.md"}}
+{"ts":"2026-07-29T15:07:51.055Z","event":"adversarial_plan_attack","actor":"adversary","meta":{"task_id":"20260729-234210-069d","run_count":3,"result":"WARN","findings":["기존 requireAdmin과 별도의 profiles.role=admin 전용 상세 라우트 보호 조건 필수"]}}
+{"ts":"2026-07-29T15:07:51.055Z","event":"adversarial_test_attack","actor":"adversary","meta":{"task_id":"20260729-234210-069d","run_count":2,"result":"PASS","findings":[]}}
+{"ts":"2026-07-29T15:07:51.055Z","event":"implementation_verified","actor":"assistant","meta":{"build":"PASS","targeted_lint":"PASS","browser":["퇴사자 카드 버튼과 memberId 경로","user+store+월 필터","조회 전용 셀","잘못된 멤버십 오류","매장 관리자 자식 미마운트","390px 모바일 레이아웃"]}}
+{"ts":"2026-07-29T15:25:36.343Z","event":"adversarial_completion_attack","actor":"reviewer+verifier","meta":{"task_id":"20260729-234210-069d","run_count":3,"result":"PASS","findings":["slow profile resolution fixed with profileResolved","cross-session stale profile fixed with request generation and session identity checks"]}}
+{"ts":"2026-07-29T15:25:36.343Z","event":"verification_completed","actor":"verifier","meta":{"task_id":"20260729-234210-069d","result":"PASS","acceptance_criteria":"AC1-AC7","build":"PASS","targeted_lint":"PASS","full_lint":"FAIL existing 25 errors 4 warnings","automated_tests":"approved_not_run"}}
+{"ts":"2026-07-29T15:25:36.343Z","event":"task_completed","actor":"assistant","meta":{"task_id":"20260729-234210-069d","status":"done"}}
+{"ts":"2026-07-29T15:25:36.343Z","event":"task_closed","actor":"assistant","meta":{"task_id":"20260729-234210-069d","status":"done","completed":"2026-07-29"}}
+{"ts":"2026-07-29T15:33:13.616Z","event":"seed_reopened","actor":"assistant","meta":{"seed_task_id":"20260729-234210-069d","from_status":"done","from_version":1,"to_version":2}}
+{"ts":"2026-07-29T15:33:13.618Z","event":"thread_opened","actor":"assistant","meta":{"thread_id":"T-20260729153313-abb0","seed_task_id":"20260729-234210-069d","seed_version":2,"ac_targeted":["AC1: 퇴사자 목록의 각 카드에만 근무기록 버튼이 보인다.","AC2: 버튼은 선택한 store_members.id를 가진 전체 관리자 전용 페이지로 이동한다.","AC3: 상세 페이지는 해당 멤버십이 role='resigned'인지 확인하고, 선택 월 스케줄에 그 행의 user_id와 store_id를 모두 적용한다.","AC4: 상세 페이지 일정표는 항상 조회 전용이다.","AC5: 기록이 없는 달은 빈 일정표와 0일 합계를 표시한다.","AC6: 존재하지 않거나 퇴사자가 아닌 멤버십은 스케줄을 표시하지 않고 명확한 오류 상태를 표시한다.","AC7: 상세 라우트는 profiles.role='admin'이 아니면 자식을 마운트하지 않고 /my로 이동시킨다."]}}

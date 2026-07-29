@@ -3,19 +3,23 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { setSession, setProfile, setLoading } = useAuthStore()
-  const isFetching = useRef(false)
+  const { setSession, setProfile, setProfileResolved, setLoading } = useAuthStore()
+  const profileRequestId = useRef(0)
 
   useEffect(() => {
     // 1. Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      setProfileResolved(!session?.user)
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
+        profileRequestId.current += 1
         setLoading(false)
       }
     }).catch(() => {
+      profileRequestId.current += 1
+      setProfileResolved(true)
       setLoading(false)
     })
 
@@ -23,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session)
+        setProfileResolved(!session?.user)
         if (session?.user) {
           // Use setTimeout to avoid Supabase's known race condition
           // where onAuthStateChange fires before getSession resolves
@@ -30,7 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             fetchProfile(session.user.id)
           }, 0)
         } else {
+          profileRequestId.current += 1
           setProfile(null)
+          useAuthStore.getState().setIsStoreManager(false)
           setLoading(false)
         }
       }
@@ -52,9 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchProfile(userId: string) {
-    // Prevent duplicate concurrent calls
-    if (isFetching.current) return
-    isFetching.current = true
+    const requestId = ++profileRequestId.current
+    setProfile(null)
+    useAuthStore.getState().setIsStoreManager(false)
+    setProfileResolved(false)
+    setLoading(true)
 
     try {
       const [{ data: profile, error: profileError }, { data: memberships }] = await Promise.all([
@@ -62,9 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.from('store_members').select('role').eq('user_id', userId)
       ])
 
-      // Race condition guard: If session was lost while fetching, abort
-      if (!useAuthStore.getState().session) {
-        setLoading(false)
+      const currentSession = useAuthStore.getState().session
+      if (profileRequestId.current !== requestId || currentSession?.user.id !== userId) {
         return
       }
 
@@ -78,10 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isManager = memberships?.some(m => m.role === 'admin') || false
       useAuthStore.getState().setIsStoreManager(isManager)
     } catch (err) {
-      console.error('프로필 로드 실패:', err)
+      if (profileRequestId.current === requestId) {
+        console.error('프로필 로드 실패:', err)
+      }
     } finally {
-      isFetching.current = false
-      setLoading(false)
+      const currentSession = useAuthStore.getState().session
+      if (profileRequestId.current === requestId && currentSession?.user.id === userId) {
+        setProfileResolved(true)
+        setLoading(false)
+      }
     }
   }
 
