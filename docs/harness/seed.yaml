@@ -1,5 +1,6 @@
 version: 4
-status: approved
+status: done
+completed: 2026-10-19
 task_id: 20261019-120000-a491
 goal: "운영 사이트의 코드·DB·배포 방식을 유지하면서 설치 안내, 프로젝트 설명과 격리된 PR 검증을 정비한다."
 constraints:
