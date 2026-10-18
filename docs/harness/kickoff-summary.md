@@ -1,46 +1,31 @@
-# Kickoff Summary: 퇴사자 근무기록 관리자 조회
+# Kickoff Summary: 운영 무변경 유지보수
 
-**Date**: 2026-07-29
-**Type**: Feature
+**Date**: 2026-10-19
+**Type**: Maintenance
 
-### JTBD
-- User: 전체 관리자
-- Problem: 퇴사자의 과거 근무기록을 관리자 페이지에서 직접 확인할 경로가 없다.
-- Success: 전체 관리자가 퇴사자 목록에서 대상자를 선택해 해당 매장의 과거 근무기록을 월별·조회 전용으로 확인한다.
+## JTBD
+- User: 현재 사이트 운영자와 유지보수 개발자.
+- Problem: 설치 안내·프로젝트 설명이 현재 저장소와 어긋나며 배포 전 핵심 규칙 검증이 없다. worktree 브랜치와 main의 관계도 혼동된다.
+- Success: 운영 코드·DB·배포 방식은 유지하면서 정확한 안내와 격리된 PR 검증을 제공한다.
 
-### Context
-- Repo type: 단일 Vite React 애플리케이션
-- Tech stack: React 19, TypeScript 5.9, React Router 7, Supabase, Tailwind CSS
-- Build/Test: `npm run build`; 자동 테스트 스크립트 없음
-- Lint: `npm run lint`
-- Existing patterns: `HistoryPage`의 월 선택 및 조회 전용 `MobileScheduleGrid`; `/admin/*`의 관리자 보호; `MembersTab`의 퇴사자 목록
-- Risks/constraints: 기존 `requireAdmin`은 매장 관리자도 허용하므로 상세 라우트에는 `profiles.role='admin'` 전용 조건이 필요함; 퇴사 멤버십에서 사용자·매장을 해석해 다른 매장 기록 혼합을 방지해야 함; DB/RLS 변경 없음
+## Context
+- 단일 React/TypeScript/Vite 앱, Supabase DB·Auth와 RLS 사용.
+- 기존 명령: `npm run build`, `npm run lint`, `npm run dev`.
+- 기존 배포: `.github/workflows/deploy.yml`의 main push → GitHub Pages, 변경하지 않는다.
+- 기존 마이그레이션: 001–008. 파일에 정의되지 않은 stores.memo·locked 등 수동 스키마 의존이 있어 완전한 신규 설치라고 주장할 수 없다.
+- 기존 완료 작업의 전체 lint 실패 기록이 있다. 앱을 고치지 않고 현재 결과를 분리해 보고한다.
 
-### Scope
-- MUST: 퇴사자 카드에 근무기록 조회 버튼 추가
-- MUST: 전체 관리자 전용 상세 페이지에서 선택한 퇴사자·매장의 월별 기록 조회
-- MUST: 기존 조회 전용 일정표 패턴 재사용
-- SHOULD: 이름, 매장, 퇴사일, 월 근무일 합계 표시
-- MUST NOT: 근무기록 수정 기능 또는 데이터베이스 변경 추가
-- OUT OF SCOPE: 여러 매장 기록 통합, 매장 관리자 접근, 퇴사 처리 방식 변경
+## Scope / Acceptance
+- MUST: seed.yaml의 AC1–AC6 전부 이행.
+- MUST NOT: 앱·기존 SQL·배포 설정·운영 DB·Git 설정 변경, 커밋·push·병합.
+- OUT: 운영 스키마 복구, 기능 변경, lint 부채 수정, 브랜치 보호 필수화.
+- 사용자 승인: 직전 운영 무변경 제안 뒤의 '변경 진행해보자'. 새로운 운영 동작 결정은 없다.
 
-### Acceptance Criteria
-1. 퇴사자 목록의 각 카드에만 `근무기록` 버튼이 보인다.
-2. 버튼을 누르면 선택한 `store_members.id`를 가진 `/admin/resigned/:memberId/history` 페이지로 이동한다.
-3. 상세 페이지는 해당 멤버십이 `role='resigned'`인지 확인하고, 선택 월 스케줄에 그 행의 사용자 ID와 매장 ID를 모두 적용한다.
-4. 상세 페이지의 일정표는 항상 조회 전용이며 저장·수정 동작을 제공하지 않는다.
-5. 기록이 없는 달은 오류 없이 빈 일정표와 0일 합계를 표시한다.
-6. 존재하지 않거나 퇴사자가 아닌 멤버십은 스케줄 없이 오류 상태를 표시한다.
-7. 전체 관리자가 아닌 사용자는 직접 URL로도 상세 UI에 접근할 수 없다.
+## Backpressure
+- 새 검증 코드만 개발 전용 PGlite와 Node 기본 테스트 러너로 추가한다.
+- PGlite API는 Context7 `/electric-sql/pglite`와 공식 API 문서로 확인했다.
+- 실제 기존 SQL 회귀 테스트, 테스트 민감도 smoke, 기존 build/lint, 워크플로·링크 검증과 보호 대상 해시 비교.
+- reviewer·verifier 독립 검증 후 결과 보고. 실제 운영 UI나 GitHub runner 실행으로 과장하지 않는다.
 
-### Edge Cases
-- 선택 월에 스케줄이 없음
-- 잘못되었거나 퇴사자가 아닌 멤버십
-- 동일 사용자가 여러 매장에서 근무한 이력 보유
-
-### Backpressure
-- Method: TDD 예외 승인에 따른 빌드·린트·브라우저 수동 E2E
-- How to run: `npm run build`, `npm run lint`, 개발 서버에서 관리자 로그인 후 직원관리 → 퇴사자 목록 → 근무기록 버튼 → 월 이동 및 조회 전용 상태 확인
-
----
-Kickoff complete. Ready for implementation.
+## Branch Evidence
+`git push --dry-run --porcelain`은 refs/heads/marahmik/main → refs/heads/marahmik/main (origin)의 새 브랜치 push를 표시했다. origin/main은 별도 병합 대상이다. dry-run은 실제 브랜치를 push하지 않았다.

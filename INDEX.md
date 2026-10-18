@@ -1,6 +1,6 @@
-# INDEX.md (omp-template)
+# INDEX.md (SSalcheduler app + layered agent harness)
 
-This folder contains a layered agent policy set (entry + modules + checklists + templates).
+This repository contains the 쌀체듈러 (SSalcheduler) store-staff scheduling app and a layered agent policy set (entry + modules + checklists + templates).
 
 **Designed for**: Oh My Pi (OMP) environment (harness gates wired by the OMP extension `.omp/extensions/harness/index.ts`; OMC agents available via OMP's task tool).
 
@@ -9,6 +9,9 @@ This folder contains a layered agent policy set (entry + modules + checklists + 
 - Principles & examples: [`EXAMPLES.md`](EXAMPLES.md)
 
 ## Entry points
+
+- App overview, setup prerequisites and development checks: [`README.md`](README.md)
+- Scheduling-app context and constraints: [`claudedocs/project_instructions.md`](claudedocs/project_instructions.md)
 
 - Agent policy (English): [`AGENTS.md`](AGENTS.md)
 - Agent policy (Korean mirror, reference only, marked stale): [`claudedocs/CLAUDEKR.md`](claudedocs/CLAUDEKR.md)

@@ -34,9 +34,9 @@
 
 ---
 
-## 시작하기 (처음부터 끝까지)
+## 시작하기 (신규 설치 전제 확인)
 
-아래 과정을 순서대로 따라하면 자신만의 쌀체듈러를 배포할 수 있습니다.
+아래는 설정 참고 절차입니다. **현재 저장소에는 새 DB에서 사이트 전체를 재현할 수 있다고 검증된 완전한 스키마가 없습니다.** 신규 설치는 3단계의 누락 스키마와 검토된 기준 스키마 확보 조건을 먼저 확인해야 합니다. 이미 운영 중인 사이트는 이 문서가 바뀌었다는 이유로 SQL을 실행하거나 설정을 변경하지 마세요.
 
 ### 1단계: 프로젝트 가져오기
 
@@ -97,17 +97,95 @@ Supabase는 데이터베이스와 로그인 기능을 제공하는 무료 서비
 
 ---
 
-### 3단계: 데이터베이스 테이블 만들기
+### 3단계: DB 기준 스키마와 적용 이력 확인
 
-프로젝트에 포함된 SQL 파일을 실행하여 필요한 테이블들을 한 번에 생성합니다.
+#### 신규 설치와 운영 DB를 구분하세요
 
-1. Supabase 대시보드 왼쪽 메뉴에서 **SQL Editor** 를 클릭합니다.
-2. **New query** 를 클릭합니다.
-3. 프로젝트의 `supabase/migrations/001_initial_schema.sql` 파일 내용을 **전체 복사**하여 붙여넣습니다.
-4. **Run** (또는 Ctrl+Enter) 을 클릭합니다.
-5. `Success. No rows returned` 라고 표시되면 성공입니다.
+- **신규 설치**: `001_initial_schema.sql`만 실행하거나 테이블 몇 개가 보인다는 이유로 설치 완료로 판단하면 안 됩니다. `001`에는 `ghost_schedules`까지 5개 테이블이 있고, 이후 `monthly_locks`, `store_memos`가 추가됩니다. 그러나 **001–008 순서 실행만으로 완전한 신규 사이트 스키마가 구성된다고 검증되지 않았으며**, 아래 선행 스키마가 저장소에서 빠져 있습니다.
+- **기존 운영 DB**: 문서 정정은 마이그레이션 실행 지시가 아닙니다. 001–008을 일괄 재실행하지 마세요. 기존 테이블 생성, 제약조건 추가, 정책 변경, 007의 데이터 이관 등이 포함되어 있습니다. 승인된 변경이 필요한 경우에만 운영자가 적용 이력·백업·현재 스키마를 대조하여 별도 검토해야 합니다.
 
-> **확인 방법**: 왼쪽 메뉴의 **Table Editor** 에서 `profiles`, `stores`, `store_members`, `schedules` 4개 테이블이 보이면 됩니다.
+#### 저장소에 있는 마이그레이션 (의존 순서)
+
+경로는 모두 `supabase/migrations/` 아래입니다. 이 목록은 이력 설명이며 운영 DB에 그대로 실행할 체크리스트가 아닙니다.
+
+| 순서 / 파일 | 목적 및 주요 의존성 |
+|-------------|--------------------|
+| `001_initial_schema.sql` | `profiles`, `stores`, `store_members`, `schedules`, `ghost_schedules`, 초기 RLS·가입/수정 트리거 생성. Supabase의 `auth.users`, `auth.uid()`, 인증 역할 등이 전제 |
+| `002_admin_rls.sql` | `is_super_admin()` 추가, `is_store_admin()` 확장, 전체관리자·매장관리자 정책 및 단기알바 RLS 보완 |
+| `003_monthly_locks.sql` | 월별 잠금 테이블과 RLS 추가. 002의 관리자 함수에 의존 |
+| `004_manager_cross_store_read.sql` | `is_any_store_manager()` 및 다른 매장 조회·일부 쓰기 정책 추가 |
+| `005_security_patch.sql` | `delete_user()` 관리자 검사, 멤버/매장 정책 보완, 스케줄 INSERT/UPDATE 검증 트리거, 메모 길이 제약 추가. `stores.memo`, `stores.locked`, 월별 잠금 및 관리자 함수에 의존 |
+| `006_store_manager_update.sql` | `is_store_admin()`을 이용한 매장 UPDATE 정책으로 교체 |
+| `007_store_memos_table.sql` | 매장×월 메모 테이블·RLS·수정시각 트리거 추가, 기존 `stores.memo`가 있으면 데이터 이관. 기존 관리자/수정시각 함수 재사용, 원본 메모 컬럼 보존 |
+| `008_store_memos_realtime_safety.sql` | Realtime publication이 존재하면 `store_memos` 등록, 메모 DELETE 정책 제거 및 `anon`/`authenticated` DELETE 권한 회수 |
+
+#### 누락된 설치 산출물
+
+현재 001–008 어디에도 다음 차이를 완성하는 DDL이 없습니다.
+
+- `stores.memo`: 005의 `memo_max_length` 제약이 이 컬럼을 직접 참조하므로 없는 DB에서는 해당 구문이 실패합니다. 007의 존재 검사/조건부 이관이 005의 선행 조건을 해결하지는 않습니다.
+- `stores.locked`: 005의 `validate_schedule_insert()`가 조회하며, 앱의 `Store` 타입도 필수로 사용합니다. 함수 생성 성공만으로 실행 시 필요한 컬럼이 갖추어졌다고 볼 수 없습니다.
+- `store_members.resignation_date`: 앱의 `StoreMember` 타입에 있으나 컬럼 생성 이력이 없습니다.
+- `store_members.role`의 `resigned`, `store_members.status`의 `banned`: 앱 타입에는 있으나 001의 CHECK 허용값에는 없고, 후속 파일에도 이를 확장하는 변경이 없습니다.
+
+**필요하지만 누락된 산출물은 이 차이와 실제 운영 권한/제약을 포함하는, 검토된 기준 스키마 또는 스키마 전용 export 및 마이그레이션 적용 이력입니다.** 신규 설치자는 저장소 관리자로부터 이를 확보하고, 민감정보를 제외한 검토본과 설치 순서를 확인한 뒤 별도 비운영 DB에서 설치를 검증해야 합니다. 타입이나 테스트 fixture로 운영용 DDL·기본값·권한을 추측하여 만들지 마세요. 이 문서는 운영 DB 상태를 조회하거나 신규 설치를 완료했다고 주장하지 않습니다.
+
+#### 읽기 전용 카탈로그 확인 예시
+
+아래는 권한 있는 운영자가 **별도 승인된 조회 절차에서** 현재 상태와 검토된 기준 스키마를 비교할 때 사용할 SELECT 예시입니다. 이 문서 변경 작업에서 운영 DB에 실행한 결과가 아니며, 결과가 존재한다는 것만으로 설치/보안 검증이 끝나는 것은 아닙니다. 데이터 행이나 인증 비밀을 조회하지 않습니다.
+
+```sql
+-- 컬럼/타입/NULL/기본값: 특히 memo, locked, resignation_date 확인
+SELECT table_name, column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('profiles', 'stores', 'store_members', 'schedules',
+                     'ghost_schedules', 'monthly_locks', 'store_memos')
+ORDER BY table_name, ordinal_position;
+
+-- CHECK/UNIQUE/FK 등: role/status 허용값도 정의를 직접 비교
+SELECT c.relname AS table_name, con.conname, con.contype,
+       pg_get_constraintdef(con.oid) AS definition
+FROM pg_constraint con
+JOIN pg_class c ON c.oid = con.conrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+ORDER BY c.relname, con.conname;
+
+-- 함수 본문/SECURITY DEFINER/search_path 및 실행 권한 비교
+SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS arguments,
+       p.prosecdef AS security_definer, p.proconfig, p.proacl,
+       pg_get_functiondef(p.oid) AS definition
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname IN ('is_super_admin', 'is_store_admin', 'is_any_store_manager',
+                    'delete_user', 'validate_schedule_insert',
+                    'handle_new_user', 'update_updated_at')
+ORDER BY p.proname, arguments;
+
+-- RLS 활성화 상태와 정책은 따로 확인
+SELECT c.relname AS table_name, c.relrowsecurity, c.relforcerowsecurity
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+ORDER BY c.relname;
+
+SELECT schemaname, tablename, policyname, roles, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+
+-- auth.users의 가입 트리거도 포함 (조회 권한이 필요할 수 있음)
+SELECT n.nspname AS schema_name, c.relname AS table_name, t.tgname,
+       t.tgenabled, pg_get_triggerdef(t.oid) AS definition
+FROM pg_trigger t
+JOIN pg_class c ON c.oid = t.tgrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE NOT t.tgisinternal
+  AND (n.nspname = 'public' OR (n.nspname = 'auth' AND c.relname = 'users'))
+ORDER BY n.nspname, c.relname, t.tgname;
+```
 
 ---
 
@@ -165,7 +243,7 @@ Google 계정으로 로그인할 수 있도록 설정합니다. (이메일+비�
 
 ```bash
 node --version
-# v18 이상이면 OK. 없다면 https://nodejs.org 에서 설치
+# 현재 GitHub Actions와 맞추려면 Node.js 20 사용
 ```
 
 #### 5-2. 패키지 설치
@@ -200,7 +278,7 @@ VITE_SUPABASE_ANON_KEY=내publishable키
 npm run dev
 ```
 
-터미널에 표시되는 주소 (보통 `http://localhost:5173/ssalcheduler/`)를 브라우저에서 열면 로그인 화면이 나타납니다.
+터미널에 표시되는 주소 (현재 Vite `base: '/'` 기준 보통 `http://localhost:5173/`)를 브라우저에서 엽니다. 로그인과 실제 기능 사용에는 앞서 설명한 DB·인증 전제가 필요합니다.
 
 **첫 번째로 가입하는 사용자가 자동으로 관리자(admin)가 됩니다.**
 
@@ -244,11 +322,9 @@ GitHub Actions가 빌드할 때 Supabase 키를 사용할 수 있도록 설정�
 
 1. `main` 브랜치에 push하면 자동으로 빌드와 배포가 시작됩니다.
 2. **Actions** 탭에서 진행 상황을 확인할 수 있습니다.
-3. 배포가 완료되면 아래 주소에서 접속 가능합니다:
+3. 배포 작업의 environment URL과 실제 사이트 주소를 확인합니다. 기존 문서의 `https://내아이디.github.io/ssalcheduler/`는 프로젝트 경로 예시이며, 현재 Vite 설정의 `base: '/'`와 일치하지 않습니다.
 
-```
-https://내아이디.github.io/ssalcheduler/
-```
+> **범위 안내**: 이 유지보수에서는 `vite.config.ts`, Pages 설정, OAuth 설정 및 기존 `deploy.yml`을 바꾸지 않으며 실제 호스팅도 검증하지 않습니다. 아래 URL 등록 예시는 실제 서비스 주소를 확인한 경우에만 참고하세요. 문서 예시를 근거로 운영 주소를 변경하지 마세요.
 
 ---
 
@@ -401,6 +477,32 @@ npm run build
 # 빌드 결과 미리보기
 npm run preview
 ```
+
+### 개발 검증과 배포의 경계
+
+```bash
+npm run lint
+npm run build
+npm run test:db
+```
+
+- `lint`: 전체 소스의 ESLint 검사입니다. 기존 전체 lint 부채는 이번 유지보수에서 규칙 비활성화·경고 은폐·앱 코드 수정으로 해결하지 않습니다. 실제 명령 결과와 기존 실패 내역은 검증 보고를 확인하세요. 이 문서는 전체 lint 통과를 주장하지 않습니다.
+- `build`: TypeScript 검사와 Vite 프로덕션 빌드입니다. 빌드 성공은 운영 DB, OAuth 또는 호스팅 동작 검증을 대신하지 않습니다.
+- `test:db`: `node --test tests/db/permissions.test.mjs`로 기존 SQL의 RLS/트리거 회귀 동작을 검사합니다. 개발 전용 `@electric-sql/pglite`의 일회성 메모리 DB를 사용하며 DB URL 환경변수, 네트워크, 운영 DB 연결이 필요 없습니다. 누락 컬럼을 보충하는 **테스트 전용 fixture는 테스트 실행을 위한 최소 전제일 뿐 완전한 운영 스키마나 신규 설치용 baseline이 아닙니다.** 통과하더라도 3단계의 누락 산출물이 해결되지는 않습니다.
+- PR 검증 워크플로는 배포하지 않습니다. 기존 `.github/workflows/deploy.yml`은 변경하지 않으며, 배포 트리거는 계속 `origin/main`에 반영되는 `main` push입니다. 작업용 worktree 브랜치 push/PR 검사와 `main` 병합은 별도 단계이고, PR 검사 성공 자체가 병합이나 배포를 뜻하지 않습니다.
+
+### DB 검증의 현재 한계와 발견 사항
+
+현재 저장소 SQL과 테스트 fixture를 사용한 `npm run test:db` 결과는 **20개 중 18개 통과, 2개 실패**입니다. 실패를 skip하거나 허용된 동작으로 고정하지 않고, 보장되어야 할 차단 조건을 회귀 테스트로 남겼습니다.
+
+| 실패하는 차단 조건 | 격리된 메모리 DB에서 관찰한 기존 SQL 동작 |
+|-------------------|-----------------------------------------|
+| 직원의 본인 관리자 승격 금지 | `profiles_update_own`은 본인 행 UPDATE를 허용하지만 `role` 변경을 별도로 제한하지 않아, 직원이 자신을 `admin`으로 바꾼 뒤 매장 생성에 성공함 |
+| 잠긴 달의 요청을 다른 달로 이동 금지 | 검증 트리거가 변경 후 날짜만 검사하여, 직원의 본인 요청이 잠긴 달에서 잠기지 않은 달로 이동함 |
+
+이 결과는 **저장소 SQL과 명시된 fixture 권한에서 재현된 문제**이며, 현재 운영 DB도 취약하다고 확인한 것은 아닙니다. 운영 DB의 실제 스키마·컬럼 권한·정책을 조회하지 않았습니다. 이번 유지보수에서는 운영 동작 보존을 위해 앱·기존 SQL·운영 DB를 수정하지 않았으므로, DB 검증 job은 이 두 결함이 별도 승인된 변경으로 해결되기 전까지 실패합니다. 기존 전체 lint 실패도 그대로 표시하며, 필수 상태 검사 설정은 추가하지 않습니다.
+
+통과한 잠금 검증은 같은 날짜의 INSERT/UPDATE 차단, 인접한 잠기지 않은 달과 승인된 다른 매장의 쓰기 허용, 잠긴 달로의 날짜 이동 차단, 해당 매장 매니저·전체관리자의 허용 작업을 포함합니다. 이 결과를 모든 권한 우회 차단이나 보안 감사 통과로 해석하면 안 됩니다. 기존 매니저의 다른 매장 접근도 동작별로 다릅니다. 004의 정책과 005의 트리거 조합에서는 다른 매장 소속이 없어도 매니저 본인 요청 INSERT는 허용되며, 다른 직원 스케줄 UPDATE 권한과 같지 않습니다.
 
 ---
 

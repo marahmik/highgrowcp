@@ -1,12 +1,16 @@
 # Project Instructions
 
-Guidelines for Claude Code when working in this repository.
+Project context and guidelines for coding assistants working in this repository.
 
 ---
 
 ## Project
 
-**Vibe Invest** - B2C investment advisory service targeting Korean market (MVP stage)
+**쌀체듈러 (SSalcheduler)** — 매장 직원의 월별 근무·휴일 스케줄을 관리하는 웹 애플리케이션입니다. 관리자/매장 매니저와 직원이 매장 소속, 일정, 승인 및 월별 메모를 관리합니다.
+
+- React + TypeScript + Vite frontend; Supabase authentication, PostgreSQL and RLS backend.
+- Product and setup guidance: [`README.md`](../README.md). Database history: `supabase/migrations/001`–`008` SQL files; application models: `src/types/database.ts`.
+- This is an existing scheduling application, not an investment advisory or trading product.
 
 ---
 
@@ -15,7 +19,7 @@ Guidelines for Claude Code when working in this repository.
 | Purpose | Location |
 |---------|----------|
 | Folder structure | [`INDEX.md`](../INDEX.md) |
-| Policy entry point | [`CLAUDE.md`](../CLAUDE.md) |
+| Policy entry point | [`AGENTS.md`](../AGENTS.md) |
 | Project-specific examples | [`claudedocs/INDEX.md`](./INDEX.md) |
 | Team agreements & notes | [`claudedocs/agreements.md`](./agreements.md) |
 
@@ -126,7 +130,9 @@ Changes:
 
 ## Key Constraints
 
-- **No real trading** (MVP stage)
-- No securities broker API integration
-- Focus only on simulation and advisory features
+- Preserve existing scheduling, authentication, store membership and permission behavior unless an explicitly approved feature requires a change.
+- Client-visible Supabase keys must be publishable/anon keys only; never expose `secret` or `service_role` credentials or bypass RLS in the browser.
+- Migration files are historical artifacts, not a verified complete fresh-install baseline. Missing `stores.memo`, `stores.locked`, `store_members.resignation_date` DDL and `resigned`/`banned` constraint changes are documented in the README. Obtain a reviewed baseline/schema export instead of inventing production DDL or replaying all SQL on an operating DB.
+- Local DB regression fixtures are isolated test prerequisites, not a production schema. Do not connect tests to an operating DB.
+- PR checks do not deploy. Existing GitHub Pages deployment remains triggered by a `main` push; pushing a worktree branch is not merging to `main`. This maintenance does not change deployment/hosting configuration or claim to validate hosting.
 

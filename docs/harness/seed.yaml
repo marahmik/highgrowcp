@@ -1,35 +1,39 @@
-version: 2
-status: done
-completed: 2026-07-29
-task_id: 20260729-234210-069d
-goal: "전체 관리자가 퇴사자 목록에서 대상자를 선택해 해당 매장의 과거 근무기록을 월별·조회 전용으로 확인한다."
+version: 4
+status: approved
+task_id: 20261019-120000-a491
+goal: "운영 사이트의 코드·DB·배포 방식을 유지하면서 설치 안내, 프로젝트 설명과 격리된 PR 검증을 정비한다."
 constraints:
-  - "기존 React Router, Supabase, MobileScheduleGrid 패턴을 재사용한다."
-  - "근무기록 수정 기능과 데이터베이스 변경을 추가하지 않는다."
-  - "상세 UI 라우트는 기존 매장 관리자 허용 경계와 분리된 profiles.role='admin' 전용 보호 조건을 사용한다."
-  - "기존 RLS의 매장 관리자 데이터 조회 범위는 이번 UI 기능의 변경 대상이 아니다."
+  - "사용자가 승인한 유지보수 범위만 구현한다."
+  - "src/, 기존 supabase/migrations/, .github/workflows/deploy.yml, 호스팅·환경변수·운영 DB를 변경하거나 운영 서비스에 접속하지 않는다."
+  - "현재 marahmik/main의 비운영 정비 커밋과 origin/marahmik/main push만 사용자 승인을 받았다. main 병합·배포, Git 설정·worktree·브랜치 보호 변경은 하지 않는다."
+  - "검증은 메모리 PostgreSQL에서 수행하며 운영 URL·키·외부 DB 연결을 받지 않는다."
+  - "기존 앱의 lint 또는 DB 동작 문제가 발견되어도 이를 숨기거나 운영 코드를 함께 수정하지 않는다."
 acceptance_criteria:
-  - "AC1: 퇴사자 목록의 각 카드에만 근무기록 버튼이 보인다."
-  - "AC2: 버튼은 선택한 store_members.id를 가진 전체 관리자 전용 페이지로 이동한다."
-  - "AC3: 상세 페이지는 해당 멤버십이 role='resigned'인지 확인하고, 선택 월 스케줄에 그 행의 user_id와 store_id를 모두 적용한다."
-  - "AC4: 상세 페이지 일정표는 항상 조회 전용이다."
-  - "AC5: 기록이 없는 달은 빈 일정표와 0일 합계를 표시한다."
-  - "AC6: 존재하지 않거나 퇴사자가 아닌 멤버십은 스케줄을 표시하지 않고 명확한 오류 상태를 표시한다."
-  - "AC7: 상세 라우트는 profiles.role='admin'이 아니면 자식을 마운트하지 않고 /my로 이동시킨다."
+  - "AC1: README에 001–008 마이그레이션 순서, 저장소에 누락된 선행 스키마, 신규 설치와 기존 운영 DB의 안전한 확인 절차를 명시한다."
+  - "AC2: INDEX와 프로젝트 설명 문서의 다른 제품·템플릿 잔재를 실제 근무 스케줄 앱에 맞게 수정한다."
+  - "AC3: PR 검증에서 기존 lint·build와 신규 test:db를 실행하되 배포 권한·운영 시크릿·운영 DB 연결을 사용하지 않는다. 기존 배포 워크플로는 유지한다."
+  - "AC4: 변경하지 않은 실제 마이그레이션의 RLS·트리거를 격리된 PostgreSQL에 적용해 일반 직원의 관리자 작업 차단, 정상 요청 허용, 매장별·월별 잠금 차단과 관리자 허용을 검증한다."
+  - "AC5: 앱 코드·기존 SQL·배포 설정·Git 설정을 유지하고 검사 결과와 기존 실패를 구분해 보고한다."
+  - "AC6: 현재 작업 브랜치 push 대상이 origin/marahmik/main임과 origin/main 반영·배포에는 별도 병합이 필요함을 실제 dry-run 결과로 설명한다."
 out_of_scope:
-  - "여러 매장의 근무기록 통합"
-  - "매장 관리자 접근 허용"
-  - "퇴사 처리 방식 변경"
+  - "운영 DB DDL·DML 실행, 누락된 운영 스키마를 추측한 신규 마이그레이션 작성"
+  - "UI·권한·잠금 업무 규칙 변경 또는 기존 앱 lint 부채 수정"
+  - "배포 환경 변경, 필수 상태 검사·브랜치 보호 설정, PR 생성·main 병합"
 assumptions:
-  - "원격 public.store_members에는 role='resigned'와 nullable resignation_date가 존재한다. 2026-07-29 Supabase 스키마 조회로 확인했다."
+  - "사용자의 변경 진행 승인은 직전 답변의 운영 무변경 범위와 검증 계획에 대한 승인이다."
+  - "운영 DB의 실제 현재 상태는 이번 작업에서 조회하지 않는다."
+  - "후속 사용자 요청으로 비운영 정비 커밋·push를 승인했고, 알려진 실패에 대한 검증 게이트 1회 예외를 명시적으로 승인했다. AC 추적·현재 staged 변경 리뷰는 예외가 아니다."
 risks:
-  - "동일 사용자의 다른 매장 기록이 섞일 수 있으므로 store_id와 user_id를 함께 필터링해야 한다."
-  - "잘못된 멤버십, 퇴사자가 아닌 멤버십, 기록 없는 달을 별도로 처리해야 한다."
-  - "빠른 월 이동에서 이전 요청 응답이 최종 선택 월의 상태를 덮어쓰지 않아야 한다."
-  - "저장소에 자동 테스트 인프라가 없어 사용자가 수동 E2E 예외를 승인했다."
+  - "기존 마이그레이션은 stores.memo·stores.locked 등 수동 스키마에 의존한다. 테스트용 최소 fixture를 완전한 신규 설치 스키마로 오인하면 안 된다."
+  - "기존 전체 lint 오류가 과거 검증 기록에 남아 있다. 신규 PR 검증에서도 실패할 수 있으며 실패를 숨기지 않는다."
+  - "PGlite는 PostgreSQL 정책 검증용이며 Supabase Auth·PostgREST·Realtime 또는 배포 UI E2E 검증을 대체하지 않는다."
+  - "저장소 SQL+fixture에서 직원 자기 관리자 승격과 잠긴 달 요청의 다른 달 이동이 재현되었다. 이를 차단해야 하는 회귀 테스트 2개는 실패하며, 운영 정책을 고치거나 실패를 숨기지 않는다."
 references:
+  - "README.md"
+  - "INDEX.md"
+  - "claudedocs/project_instructions.md"
+  - "package.json"
+  - "supabase/migrations/"
+  - ".github/workflows/deploy.yml"
   - "docs/harness/kickoff-summary.md"
-  - "docs/brainstorming/scratchboard.md"
-  - "src/pages/admin/MembersTab.tsx"
-  - "src/pages/HistoryPage.tsx"
-  - "src/App.tsx"
+  - "docs/harness/test-plan.md"
